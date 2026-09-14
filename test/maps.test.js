@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {MAPS,MAP_CHOICES,mapTypes} from '../public/maps.js';
-import {generateProps,free,groundAt,mapFor,propTypes,pathTo,nearestHit,sight} from '../public/world.js';
+import {MAPS,MAP_CHOICES,mapTypes,SIZE_TIERS,mapSize} from '../public/maps.js';
+import {generateProps,free,groundAt,mapFor,propTypes,pathTo,nearestHit,sight,ROOM} from '../public/world.js';
 import {player,start,tick,view,sanitizeSettings,configureRoom,defaultSettings} from '../game.js';
 function make(mapId,teamSize=3){const r={host:'a',phase:'lobby',settings:sanitizeSettings({mapId,teamSize,botMode:'fill',swapTeams:false}),players:{a:player('a','Avcı',false,'hunter')}};assert.equal(start(r,1000).ok,true);return r;}
 test('all eight maps are selectable and each new map has its own valid, supported inventory',()=>{
@@ -127,4 +127,36 @@ test('manager office connects only to the main corridor, with a solid mobile-off
  assert.equal(free(-14,-12,.3,objects),false,'former side doorway is closed');
  assert.ok(!MAPS.techOffice.doors.some(([x,z])=>x===-14&&z===-12));
  assert.equal(nearestHit({x:-14,y:1.6,z:-13},{x:0,y:0,z:1},objects).kind,'wall');
+});
+
+test('every map card carries a size label derived from its own architecture',()=>{
+ // Etiket elle girilmez: kartın ölçüsü haritanın gerçek odasından gelmeli, yoksa bir harita
+ // büyütüldüğünde rozet sessizce yalan söyler.
+ for(const choice of MAP_CHOICES){
+  const room=choice.id==='loft'?ROOM:MAPS[choice.id].room;
+  assert.equal(choice.width,Math.round(room.width),choice.id);
+  assert.equal(choice.depth,Math.round(room.depth),choice.id);
+  assert.equal(choice.area,choice.width*choice.depth,choice.id);
+  assert.ok(SIZE_TIERS.some(t=>t.id===choice.size&&t.name===choice.sizeName&&t.teams===choice.sizeTeams),choice.id);
+ }
+ // Güneşli Ev'in ölçüsü maps.js'te kopyalanır çünkü world.js maps.js'i import eder; kopya kayarsa
+ // kart gerçek odadan farklı bir boyut gösterir.
+ assert.equal(MAP_CHOICES.find(m=>m.id==='loft').width,Math.round(ROOM.width));
+ assert.equal(MAP_CHOICES.find(m=>m.id==='loft').depth,Math.round(ROOM.depth));
+});
+test('size tiers are ordered, exhaustive and match the three real map footprints',()=>{
+ // Kademe sırası alanla aynı yönde gitmeli: daha büyük bir harita asla daha küçük etiket almamalı.
+ const rank=new Map(SIZE_TIERS.map((t,i)=>[t.id,i]));
+ for(const a of MAP_CHOICES)for(const b of MAP_CHOICES)
+  if(a.area>b.area)assert.ok(rank.get(a.size)>=rank.get(b.size),`${a.id} > ${b.id}`);
+ assert.equal(SIZE_TIERS.at(-1).maxArea,Infinity);
+ const byTier=id=>MAP_CHOICES.filter(m=>m.size===id).map(m=>m.id).sort();
+ assert.deepEqual(byTier('standard'),['arcade','greenhouse','hotel','loft','market','museum']);
+ assert.deepEqual(byTier('large'),['techOffice']);
+ assert.deepEqual(byTier('huge'),['harbor']);
+ assert.equal(MAP_CHOICES.find(m=>m.id==='harbor').area,4032);
+ assert.equal(MAP_CHOICES.find(m=>m.id==='techOffice').area,2112);
+ // Ölçekleme sonrası 55.999… taşıyan liman odası yuvarlanmadan eşiğe girmemeli.
+ assert.deepEqual(mapSize({width:55.99999999999999,depth:71.99999999999999}),
+  {width:56,depth:72,area:4032,size:'huge',sizeName:'Devasa',sizeTeams:'6v6 – 12v12'});
 });

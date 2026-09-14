@@ -72,7 +72,7 @@ const containers=[
  ...[13,27,41].flatMap((z,row)=>[-31,-12].map((x,col)=>({x,z,w:12,d:3,h:row===1?6.4:3.2,color:(row+col+1)%3}))),
  {x:32,z:8,w:3,d:12,h:3.2,color:1},{x:17,z:35,w:3,d:12,h:3.2,color:2}
 ];
-const harbor=level('harbor','Son Sevkiyat','84 × 108 m · Kargo limanı · Konteynerler, vinçler ve rıhtım.','#456e80',[
+const harbor=level('harbor','Son Sevkiyat','Kargo limanı · Konteynerler, vinçler ve rıhtım.','#456e80',[
  [0,-54,84,.4,5],[0,54,84,.4,1.15],[-42,0,.4,108,5],[42,0,.4,108,1.15],
  ...containers.map(({x,z,w,d,h})=>[x,z,w,d,h]),
  // Freight shed: two six-metre loading doors on the south, plus a side exit.
@@ -110,7 +110,7 @@ for(const side of [-1,1]){
   officeDoors.push([side*14,z,2.8,1.2]);
  }
 }
-const techOffice=level('techOffice','Sprint Ofisi','44 × 48 m · 8 ekip odası · Masalar, cihazlar ve sunucular.','#778eac',officeWalls,
+const techOffice=level('techOffice','Sprint Ofisi','8 ekip odası · Masalar, cihazlar ve sunucular.','#778eac',officeWalls,
  officeRooms.map(([id,name,side,z,types])=>area(id,name,side<0?-21:3.5,side<0?-3.5:21,z-5.3,z+5.3,types)),
  {room:{width:44,depth:48,height:4.8},doors:officeDoors,preview:'/maps/references/techOffice.svg'});
 export function terrainHeight(map,x,z){
@@ -161,7 +161,6 @@ for(const z of [-46,-18,8,30,48])for(const x of [4,8])add(harbor,'trafficCone',x
 // Compact the harbor layout while keeping disguises life-sized and cargo aligned on pallets.
 const harborScale=2/3;
 harbor.room.width*=harborScale;harbor.room.depth*=harborScale;harbor.layoutScale=harborScale;
-harbor.subtitle='56 × 72 m · Kargo limanı · Konteynerler, vinçler ve rıhtım.';
 harbor.walls=harbor.walls.map(([x,z,w,d,...rest])=>[x*harborScale,z*harborScale,w*harborScale,d*harborScale,...rest]);
 harbor.doors=harbor.doors.map(v=>v.map(n=>n*harborScale));
 for(const c of harbor.containers)for(const key of ['x','z','w','d'])c[key]*=harborScale;
@@ -200,5 +199,22 @@ for(const zone of techOffice.zones){
 // Extra objects on tables remain independently selectable and travel with their support.
 for(const map of Object.values(maps)){for(const f of [...map.fixtures])if(['f_potting','f_dining'].includes(f.type))for(const side of [-1,1])add(map,'stool',f.x+side*1.2,f.z+1.35,terrainHeight(map,f.x,f.z+1.35));}
 export const MAPS=Object.freeze(maps);
-export const MAP_CHOICES=[{id:'loft',name:'Güneşli Ev',subtitle:'Tanıdık odalar, yüzlerce farklı kılık.',color:'#8c9c7c',preview:'/maps/references/loft.jpeg'},...Object.values(maps).map(({id,name,subtitle,color,preview})=>({id,name,subtitle,color,preview}))];
+// Boyut etiketi mimarinin kendisinden okunur; elle girilen ikinci bir ölçü yoktur, yani bir
+// haritanın odası büyürse kartındaki rozet de kendiliğinden değişir. Eşikler bugünkü iki gerçek
+// sıçramayı ayırır: altı harita 1.008 m², Sprint Ofisi 2.112 m², Son Sevkiyat 4.032 m².
+export const SIZE_TIERS=[
+ {id:'standard',name:'Standart',maxArea:1500,teams:'1v1 – 6v6'},
+ {id:'large',name:'Büyük',maxArea:3000,teams:'3v3 – 8v8'},
+ {id:'huge',name:'Devasa',maxArea:Infinity,teams:'6v6 – 12v12'},
+];
+// Güneşli Ev'in odası world.js'te durur, ama world.js maps.js'i import ettiği için ölçü buradan
+// geri okunamaz. Kopya bilerek: testte world.js ROOM ile eşit kaldığı sınanır.
+const LOFT_ROOM={width:28,depth:36};
+// Liman ölçekleme sonrası 55.999… gibi değerler taşıyor; yuvarlama hem eşiği hem etiketi düzeltir.
+export function mapSize(room){
+ const width=Math.round(room.width),depth=Math.round(room.depth),area=width*depth;
+ const tier=SIZE_TIERS.find(t=>area<=t.maxArea);
+ return {width,depth,area,size:tier.id,sizeName:tier.name,sizeTeams:tier.teams};
+}
+export const MAP_CHOICES=[{id:'loft',name:'Güneşli Ev',subtitle:'Tanıdık odalar, yüzlerce farklı kılık.',color:'#8c9c7c',preview:'/maps/references/loft.jpeg',...mapSize(LOFT_ROOM)},...Object.values(maps).map(({id,name,subtitle,color,preview,room})=>({id,name,subtitle,color,preview,...mapSize(room)}))];
 export const validMap=id=>id==='loft'||Object.hasOwn(MAPS,id);

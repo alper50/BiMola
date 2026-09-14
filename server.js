@@ -3,7 +3,7 @@ import {createServer} from 'node:http';
 import {randomUUID} from 'node:crypto';
 import {Server} from 'socket.io';
 import {fileURLToPath} from 'node:url';
-import {player,start,tick,action,view,sanitizeSettings,configureRoom,syncBots,setTeam} from './game.js';
+import {player,start,tick,action,view,sanitizeSettings,configureRoom,syncBots,setTeam,castVote} from './game.js';
 export function createGameServer(){
  // cors:{origin:true} echoes back whatever Origin the browser sends (defensive — io() already
  // connects same-origin by default, but this rules out CORS if the client is ever loaded cross-origin,
@@ -20,7 +20,7 @@ export function createGameServer(){
   const humans=Object.values(r.players).filter(p=>!p.bot);if(!humans.length)rooms.delete(r.code);else{if(r.host===s.id)r.host=humans.find(p=>!p.waiting)?.id||humans[0].id;if(['lobby','end'].includes(r.phase))syncBots(r);publish(r);}
  }
  io.on('connection',s=>{
-  let lastJoin=0,lastAction=0;
+  let lastJoin=0,lastAction=0,lastVote=0;
   s.on('join',(data={},ack)=>{
    if(typeof ack!=='function')return;const now=Date.now();if(now-lastJoin<350)return ack({error:'Bir saniye bekle.'});lastJoin=now;
    if(!data||typeof data!=='object'||Array.isArray(data))return ack({error:'Oda bilgisi geçersiz.'});
@@ -60,6 +60,10 @@ export function createGameServer(){
   });
   s.on('action',(data,ack)=>{const now=Date.now();if(now-lastAction<90){if(typeof ack==='function')ack({ok:false,error:'Bir an bekle.'});return;}lastAction=now;
    const r=rooms.get(s.data.code),p=r?.players[s.id];const result=p?action(r,p,data,now):{ok:false,error:'Oda bulunamadı.'};if(typeof ack==='function')ack(result);s.emit('action-result',result);
+  });
+  s.on('vote',(mapId,ack)=>{const now=Date.now();if(now-lastVote<90){if(typeof ack==='function')ack({ok:false,error:'Bir an bekle.'});return;}lastVote=now;
+   const r=rooms.get(s.data.code),p=r?.players[s.id];const result=p?castVote(r,p,String(mapId||''),now):{ok:false,error:'Oda bulunamadı.'};
+   if(typeof ack==='function')ack(result);
   });
   s.on('leave',()=>leave(s));s.on('disconnect',()=>leave(s));
  });

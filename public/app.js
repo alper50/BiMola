@@ -4,13 +4,13 @@ import {createScene} from './scene.js';
 import {createAudio} from './audio.js';
 import {propTypes} from './world.js';
 const $=id=>document.getElementById(id),socket=io(),audio=createAudio();let world;
-document.body.insertAdjacentHTML('beforeend','<dialog id="waiting-dialog"><div class="eyebrow">SONRAKİ TUR SIRASINDASIN</div><h2>Bu tur bitsin,<br>sen de oyundasın.</h2><p class="muted" id="waiting-note"></p><b class="waiting-code" id="waiting-code"></b><div class="waiting-list" id="waiting-list"></div><button class="secondary exit">Odadan ayrıl</button></dialog>');
+document.body.insertAdjacentHTML('beforeend','<dialog id="waiting-dialog"><div class="eyebrow">SONRAKİ TUR SIRASINDASIN</div><h2>Bu tur bitsin,<br>sen de oyundasın.</h2><p class="muted" id="waiting-note"></p><b class="waiting-code" id="waiting-code"></b><div class="waiting-list" id="waiting-list"></div><div id="waiting-vote" class="vote-box hidden"></div><button class="secondary exit">Odadan ayrıl</button></dialog>');
 // Connection status must reflect the socket regardless of whether the 3D scene can start,
 // so a WebGL failure never leaves the header stuck on "Bağlanıyor" with no explanation.
 socket.on('connect',()=>{$('connection').innerHTML='<i></i> Çevrimiçi';refreshRooms();});
 socket.on('connect_error',error=>{$('connection').textContent='Sunucuya bağlanılamadı';console.error('socket connect_error:',error.message);});
 try{world=createScene($('scene'));}catch(error){$('fatal').classList.remove('hidden');$('fatal').textContent='3D oda açılamadı. WebGL destekli güncel bir tarayıcıda donanım hızlandırmasını açıp tekrar dene.';console.error('createScene failed:',error);throw error;}
-const defaults={mapId:'loft',mapRotate:true,teamSize:3,botMode:'fill',hunterBots:3,hiderBots:2,hideSeconds:20,roundSeconds:180,teamSelection:'choose',swapTeams:true,objectCount:10,decor:.25,idleReveal:30,waterTrail:true,smashHits:50,revealHits:3,escapeBoost:1.1};
+const defaults={mapId:'loft',mapRotate:true,mapVote:60,teamSize:3,botMode:'fill',hunterBots:3,hiderBots:2,hideSeconds:20,roundSeconds:180,teamSelection:'choose',swapTeams:true,objectCount:10,decor:.25,idleReveal:30,waterTrail:true,smashHits:50,revealHits:3,escapeBoost:1.1};
 let state=null,myId=null,active=false,entered=false,keys={},yaw=0,pitch=0,fire=false,dragging=false,dragDistance=0,mode='quick',selectedRole='hider',draft={...defaults},editSettings=false,lastRound=0,lastPhase='',teamSignature='',pickerSignature='',lastShotId='',toastTimer,hitTimer,pickerAuto=false,pickerHush='',wasExposed=false,warnedIdle=false,seenIdle=new Set();
 const coarse=matchMedia('(pointer:coarse)').matches,reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
 let spectatorMode='free',spectatorTarget=null;
@@ -74,12 +74,20 @@ $('quick').onclick=()=>openPlay('quick');$('join-open').onclick=()=>openPlay('jo
 let quickMap=defaults.mapId;
 function buildMapGrid(id,pick){
  $(id).replaceChildren(...MAP_CHOICES.map(map=>{
-  const card=document.createElement('button');card.type='button';card.className='map-card';card.dataset.map=map.id;
-  card.setAttribute('role','radio');card.title=map.name+' — '+map.subtitle;
+  const card=document.createElement('button');card.type='button';card.className='map-card';card.dataset.map=map.id;card.dataset.size=map.size;
+  card.setAttribute('role','radio');card.title=`${map.name} — ${map.subtitle} (${map.sizeName} · ${map.width}×${map.depth} m)`;
   const image=document.createElement('img');image.src=map.preview;image.alt='';image.loading='lazy';
+  // Rozet kalıcı, altyazı değil: hangi haritanın kaç kişilik olduğu seçmeden önce okunmalı, yoksa
+  // kurucu ancak kartı seçtikten sonra limanın standart haritanın dört katı olduğunu görüyor.
+  const size=document.createElement('i');size.className='map-size';
+  const tier=document.createElement('b');tier.textContent=map.sizeName.toLocaleUpperCase('tr');
+  const dimensions=document.createElement('em');dimensions.textContent=`${map.width}×${map.depth}`;
+  size.append(tier,dimensions);
   const name=document.createElement('strong');name.textContent=map.name;
   const note=document.createElement('span');note.textContent=map.subtitle;
-  card.append(image,name,note);card.onclick=()=>pick(map.id);return card;
+  const meta=document.createElement('em');meta.className='map-meta';meta.textContent=`${map.area.toLocaleString('tr')} m² · ${map.sizeTeams} önerilir`;
+  note.append(document.createElement('br'),meta);
+  card.append(image,size,name,note);card.onclick=()=>pick(map.id);return card;
  }));
 }
 function paintMapGrid(id,current){for(const card of $(id).children){const on=card.dataset.map===current;card.classList.toggle('selected',on);card.setAttribute('aria-checked',on?'true':'false');card.tabIndex=on?0:-1;}}
@@ -107,13 +115,15 @@ function ensureSkinGrid(){
  }));}
  paintSkinGrid();
 }
-const mapName=id=>MAP_CHOICES.find(m=>m.id===id)?.name||id;
+const mapOf=id=>MAP_CHOICES.find(m=>m.id===id);
+const mapName=id=>mapOf(id)?.name||id;
+const mapSizeText=id=>{const map=mapOf(id);return map?`${map.sizeName} ${map.width}×${map.depth} m`:'';};
 const phaseName=phase=>phase==='play'?'Tur oynanıyor':phase==='prep'?'Saklanma süresi':phase==='end'?'Tur tamamlandı':'Oyuncular bekleniyor';
 async function refreshRooms(){
  if(!$('home')||$('home').classList.contains('hidden'))return;
  try{const response=await fetch('/api/rooms',{cache:'no-store'});if(!response.ok)throw new Error();const rooms=await response.json();
   if(!rooms.length){const empty=document.createElement('small');empty.textContent='Şu an katılabileceğin açık oda yok.';$('active-rooms').replaceChildren(empty);return;}
-  $('active-rooms').replaceChildren(...rooms.map(room=>{const row=document.createElement('div'),code=document.createElement('b'),detail=document.createElement('span'),join=document.createElement('button');row.className='room-row';code.textContent=room.code;detail.textContent=`${mapName(room.mapId)} · ${room.players}/${room.capacity} · ${phaseName(room.phase)}${room.waiting?` · ${room.waiting} sırada`:''}`;join.textContent=room.phase==='play'||room.phase==='prep'?'Sıraya gir →':'Katıl →';join.onclick=()=>{$('code').value=room.code;openPlay('join');};row.append(code,detail,join);return row;}));
+  $('active-rooms').replaceChildren(...rooms.map(room=>{const row=document.createElement('div'),code=document.createElement('b'),detail=document.createElement('span'),join=document.createElement('button');row.className='room-row';code.textContent=room.code;detail.textContent=`${mapName(room.mapId)} · ${mapOf(room.mapId)?.sizeName||'—'} · ${room.players}/${room.capacity} · ${phaseName(room.phase)}${room.waiting?` · ${room.waiting} sırada`:''}`;join.textContent=room.phase==='play'||room.phase==='prep'?'Sıraya gir →':'Katıl →';join.onclick=()=>{$('code').value=room.code;openPlay('join');};row.append(code,detail,join);return row;}));
  }catch{const error=document.createElement('small');error.textContent='Oda listesi şu an yenilenemedi.';$('active-rooms').replaceChildren(error);}
 }
 $('rooms-refresh').onclick=refreshRooms;setInterval(refreshRooms,4000);
@@ -137,9 +147,9 @@ const BALANCE_NOTE={
 const densityKey=s=>Object.keys(DENSITY).find(k=>DENSITY[k].objectCount===s.objectCount&&DENSITY[k].decor===s.decor)
  ||Object.keys(DENSITY).reduce((best,k)=>Math.abs(DENSITY[k].objectCount-s.objectCount)<Math.abs(DENSITY[best].objectCount-s.objectCount)?k:best,'lean');
 const balanceKey=s=>Object.keys(BALANCE).find(k=>Object.entries(BALANCE[k]).every(([field,value])=>s[field]===value))||'custom';
-function showSettings(settings,editing){editSettings=editing;draft={...defaults,...settings};paintMapGrid('map-grid',draft.mapId);$('map-rotate').value=draft.mapRotate===false?'0':'1';$('team-size').value=draft.teamSize;$('bot-mode').value=draft.botMode;$('hider-bots').value=draft.hiderBots;$('hunter-bots').value=draft.hunterBots;$('hide-seconds').value=draft.hideSeconds;$('round-seconds').value=draft.roundSeconds;$('team-selection').value=draft.teamSelection;$('density').value=densityKey(draft);$('balance').value=balanceKey(draft);$('idle-reveal').value=draft.idleReveal;$('reveal-hits').value=draft.revealHits;$('escape-boost').value=draft.escapeBoost;$('smash-hits').value=draft.smashHits;$('water-trail').value=draft.waterTrail===false?'0':'1';$('settings-title').textContent=editing?'Odayı sen ayarla.':'Kendi odanı kur.';$('save-settings').textContent=editing?'Ayarları kaydet →':'Devam et →';$('settings-error').textContent='';updateSettings();showDialog('settings-dialog');}
-function readSettings(){return{mapId:draft.mapId,mapRotate:$('map-rotate').value==='1',teamSize:Number($('team-size').value),botMode:$('bot-mode').value,hiderBots:Number($('hider-bots').value),hunterBots:Number($('hunter-bots').value),hideSeconds:Number($('hide-seconds').value),roundSeconds:Number($('round-seconds').value),...DENSITY[$('density').value]||DENSITY.lean,...($('balance').value==='custom'?{idleReveal:Number($('idle-reveal').value),revealHits:Number($('reveal-hits').value),escapeBoost:Number($('escape-boost').value),smashHits:Number($('smash-hits').value)}:BALANCE[$('balance').value]),teamSelection:$('team-selection').value,waterTrail:$('water-trail').value==='1',swapTeams:true};}
-function updateSettings(){const s=readSettings(),custom=s.botMode==='custom',hand=$('balance').value==='custom';$('hider-bot-field').classList.toggle('hidden',!custom);$('hunter-bot-field').classList.toggle('hidden',!custom);$('hider-bots').max=$('hunter-bots').max=s.teamSize;document.querySelectorAll('.balance-custom').forEach(field=>field.classList.toggle('hidden',!hand));$('density-note').textContent=DENSITY_NOTE[$('density').value]||'';$('balance-note').textContent=hand?BALANCE_NOTE.custom:BALANCE_NOTE[$('balance').value]||'';const balanceText=hand?`${s.revealHits} isabet · ${s.escapeBoost}× kaçış · ${s.idleReveal?s.idleReveal+' sn iz':'iz kapalı'} · ${s.smashHits?s.smashHits+' atışta dağılır':'eşyalar dağılmaz'}`:$('balance').selectedOptions[0].textContent.split(' · ')[0].toLocaleLowerCase('tr');$('settings-summary').textContent=`${mapName(s.mapId)}${s.mapRotate?' · her turda değişir':''} · ${s.teamSize}'e ${s.teamSize} · ${s.hideSeconds} sn saklanma · ${s.roundSeconds/60} dk tur · ${$('density').selectedOptions[0].textContent.split(' · ')[0].toLocaleLowerCase('tr')} eşya · ${balanceText}${s.waterTrail?' · ıslanan iz bırakır':' · su izi kapalı'}. ${s.botMode==='fill'?'Eksik yerler botlarla dolar.':s.botMode==='off'?'Tüm yerler gerçek oyuncular için.':'Bot sayılarını lobide de değiştirebilirsin.'}`;}
+function showSettings(settings,editing){editSettings=editing;draft={...defaults,...settings};paintMapGrid('map-grid',draft.mapId);$('map-rotate').value=draft.mapRotate===false?'0':'1';$('map-vote').value=String(draft.mapVote??60);$('team-size').value=draft.teamSize;$('bot-mode').value=draft.botMode;$('hider-bots').value=draft.hiderBots;$('hunter-bots').value=draft.hunterBots;$('hide-seconds').value=draft.hideSeconds;$('round-seconds').value=draft.roundSeconds;$('team-selection').value=draft.teamSelection;$('density').value=densityKey(draft);$('balance').value=balanceKey(draft);$('idle-reveal').value=draft.idleReveal;$('reveal-hits').value=draft.revealHits;$('escape-boost').value=draft.escapeBoost;$('smash-hits').value=draft.smashHits;$('water-trail').value=draft.waterTrail===false?'0':'1';$('settings-title').textContent=editing?'Odayı sen ayarla.':'Kendi odanı kur.';$('save-settings').textContent=editing?'Ayarları kaydet →':'Devam et →';$('settings-error').textContent='';updateSettings();showDialog('settings-dialog');}
+function readSettings(){return{mapId:draft.mapId,mapRotate:$('map-rotate').value==='1',mapVote:Number($('map-vote').value),teamSize:Number($('team-size').value),botMode:$('bot-mode').value,hiderBots:Number($('hider-bots').value),hunterBots:Number($('hunter-bots').value),hideSeconds:Number($('hide-seconds').value),roundSeconds:Number($('round-seconds').value),...DENSITY[$('density').value]||DENSITY.lean,...($('balance').value==='custom'?{idleReveal:Number($('idle-reveal').value),revealHits:Number($('reveal-hits').value),escapeBoost:Number($('escape-boost').value),smashHits:Number($('smash-hits').value)}:BALANCE[$('balance').value]),teamSelection:$('team-selection').value,waterTrail:$('water-trail').value==='1',swapTeams:true};}
+function updateSettings(){const s=readSettings(),custom=s.botMode==='custom',hand=$('balance').value==='custom';$('hider-bot-field').classList.toggle('hidden',!custom);$('hunter-bot-field').classList.toggle('hidden',!custom);$('hider-bots').max=$('hunter-bots').max=s.teamSize;document.querySelectorAll('.balance-custom').forEach(field=>field.classList.toggle('hidden',!hand));$('density-note').textContent=DENSITY_NOTE[$('density').value]||'';$('balance-note').textContent=hand?BALANCE_NOTE.custom:BALANCE_NOTE[$('balance').value]||'';const balanceText=hand?`${s.revealHits} isabet · ${s.escapeBoost}× kaçış · ${s.idleReveal?s.idleReveal+' sn iz':'iz kapalı'} · ${s.smashHits?s.smashHits+' atışta dağılır':'eşyalar dağılmaz'}`:$('balance').selectedOptions[0].textContent.split(' · ')[0].toLocaleLowerCase('tr');$('settings-summary').textContent=`${mapName(s.mapId)}${s.mapRotate?(s.mapVote?` · ${s.mapVote} sn harita oylaması`:' · her turda değişir'):''} · ${s.teamSize}'e ${s.teamSize} · ${s.hideSeconds} sn saklanma · ${s.roundSeconds/60} dk tur · ${$('density').selectedOptions[0].textContent.split(' · ')[0].toLocaleLowerCase('tr')} eşya · ${balanceText}${s.waterTrail?' · ıslanan iz bırakır':' · su izi kapalı'}. ${s.botMode==='fill'?'Eksik yerler botlarla dolar.':s.botMode==='off'?'Tüm yerler gerçek oyuncular için.':'Bot sayılarını lobide de değiştirebilirsin.'}`;}
 for(const id of ['map-rotate','density','team-size','team-selection','bot-mode','hider-bots','hunter-bots','hide-seconds','round-seconds','balance','idle-reveal','reveal-hits','escape-boost','smash-hits','water-trail'])$(id).onchange=updateSettings;
 $('create').onclick=()=>showSettings(defaults,false);$('settings-open').onclick=()=>showSettings(state?.settings||draft,!!state);
 $('save-settings').onclick=()=>{const s=readSettings();if(s.botMode==='custom'&&(s.hiderBots<0||s.hunterBots<0||s.hiderBots>s.teamSize||s.hunterBots>s.teamSize)){ $('settings-error').textContent='Bot sayısı 0 ile takım kapasitesi arasında olmalı.';return;}draft=s;if(editSettings){request('settings',s,r=>{if(r.error)$('settings-error').textContent=r.error;else $('settings-dialog').close();});}else{$('settings-dialog').close();openPlay('create');}};
@@ -153,7 +163,7 @@ function startRound(){socket.timeout(6000).emit('start',(err,r)=>{if(err||r?.err
 $('start').onclick=$('again').onclick=startRound;
 for(const team of ['hider','hunter'])$('choose-'+team).onclick=()=>request('team',team,r=>{if(r.error)toast(r.error);});
 for(const b of document.querySelectorAll('[data-bot]'))b.onclick=()=>{if(!state)return;const count=t=>state.players.filter(p=>p.bot&&p.team===t).length,s={...state.settings,botMode:'custom',hiderBots:count('hider'),hunterBots:count('hunter')};s[b.dataset.bot+'Bots']=Math.max(0,s[b.dataset.bot+'Bots']+Number(b.dataset.delta));request('settings',s,r=>{if(r.error)toast(r.error);});};
-function renderLobby(s){$('copy').textContent=s.code;const host=s.host===myId;$('settings-open').disabled=!host;document.querySelectorAll('.bot-controls').forEach(x=>x.classList.toggle('hidden',!host));$('lobby-settings').textContent=`${mapName(s.settings.mapId)}${s.settings.mapRotate?' (her turda değişir)':''} · ${s.settings.teamSize}'e ${s.settings.teamSize} · ${s.settings.roundSeconds/60} dk tur · ${s.settings.revealHits} isabet · ${s.settings.escapeBoost}× kaçış${s.settings.waterTrail?' · su izi':''}`;
+function renderLobby(s){$('copy').textContent=s.code;const host=s.host===myId;$('settings-open').disabled=!host;document.querySelectorAll('.bot-controls').forEach(x=>x.classList.toggle('hidden',!host));$('lobby-settings').textContent=`${mapName(s.settings.mapId)}${s.settings.mapRotate?(s.settings.mapVote?' (her tur oylanır)':' (her turda değişir)'):''} · ${mapSizeText(s.settings.mapId)} · ${s.settings.teamSize}'e ${s.settings.teamSize} · ${s.settings.roundSeconds/60} dk tur · ${s.settings.revealHits} isabet · ${s.settings.escapeBoost}× kaçış${s.settings.waterTrail?' · su izi':''}`;
  const signature=JSON.stringify([s.players.map(p=>[p.id,p.name,p.team,p.bot]),s.settings,s.host]);if(signature===teamSignature)return;teamSignature=signature;
  for(const team of ['hider','hunter']){const players=s.players.filter(p=>p.team===team);$(team+'-count').textContent=`${players.length} / ${s.settings.teamSize}`;const rows=players.map(p=>{const d=document.createElement('div'),av=document.createElement('span'),name=document.createElement('span'),meta=document.createElement('small');av.className='avatar';av.textContent=p.bot?'B':p.name.slice(0,2).toUpperCase();name.textContent=p.name+(p.id===myId?' · sen':'');meta.textContent=p.bot?'BOT':p.id===s.host?'KURUCU':'OYUNCU';d.append(av,name,meta);if(host&&!p.bot&&s.players.length>1){const select=document.createElement('select');select.setAttribute('aria-label',p.name+' için takım');for(const [v,t]of [['hider','Saklanan'],['hunter','Avcı']]){const o=document.createElement('option');o.value=v;o.textContent=t;select.append(o);}select.value=p.team;select.onchange=()=>request('move-team',{playerId:p.id,team:select.value},r=>{if(r.error){toast(r.error);select.value=p.team;}});d.append(select);}return d;});for(let i=players.length;i<s.settings.teamSize;i++){const d=document.createElement('div');d.className='empty';d.textContent='＋ Oyuncu bekleniyor';rows.push(d);}$(team+'-roster').replaceChildren(...rows);$('choose-'+team).disabled=me()?.team===team||s.settings.teamSelection==='auto'&&!host;}
  const counts=Object.fromEntries(['hider','hunter'].map(t=>[t,s.players.filter(p=>p.team===t).length]));
@@ -211,12 +221,62 @@ qualityUI();
 $('enter').onclick=enter;$('pause').onclick=()=>showDialog('pause-dialog');$('resume').onclick=()=>{$('pause-dialog').close();enter();};
 socket.on('disconnect',()=>{$('connection').textContent='Bağlantı kesildi';if(myId){leave();$('error').textContent='Bağlantı kesildi. Yeniden bağlanınca odana tekrar katıl.';}});
 socket.on('hit',r=>{$('hit-feedback').textContent=r.found?'✦ BULDUN!':r.decoy?'◇ KOPYA DAĞILDI':r.smashed?'◈ EŞYA DAĞILDI':r.real&&r.smashAt?`💧 Gerçek eşya · ${r.shots}/${r.smashAt}`:`💧 %${Math.round(r.wet)}${r.real?' · Gerçek eşya':''}`;clearTimeout(hitTimer);hitTimer=setTimeout(()=>$('hit-feedback').textContent='',900);if(r.found)audio.effect('found',.15);});
-function renderResult(s){$('winner').textContent=s.winner==='hunter'?'Avcılar kazandı!':'Saklananlar kazandı!';$('result-text').textContent=s.reason||'';$('again').disabled=s.host!==myId;$('result-roster').replaceChildren(...s.players.filter(p=>p.team==='hider').map(p=>{const d=document.createElement('div'),name=document.createElement('span'),status=document.createElement('small');name.textContent=p.name;status.textContent=p.status==='found'?'BULUNDU':'SAKLI KALDI';d.append(name,status);return d;}));}
+// Oylama kutusu iki yerde birden çizilir: turu oynayan sonuç ekranında, sıradaki turu bekleyen
+// bekleme penceresinde görür. İkisi de aynı pakete bakar, yani sayımlar ve geri sayım aynı anda
+// ilerler. Geri sayım sunucunun until'i ile s.now farkından okunur — ayrı bir yerel sayaç kurmak
+// sekme arkaya alındığında istemciyi sunucudan ayırırdı.
+function voteCardFor(mapId,vote,total){
+ const map=mapOf(mapId),count=vote.counts?.[mapId]||0;
+ const card=document.createElement('button');card.type='button';card.className='vote-card';card.dataset.map=mapId;card.dataset.size=map?.size||'standard';
+ card.classList.toggle('selected',vote.mine===mapId);
+ card.classList.toggle('winner',!!vote.closed&&vote.winner===mapId);
+ card.disabled=!!vote.closed;
+ if(map){const image=document.createElement('img');image.src=map.preview;image.alt='';image.loading='lazy';card.append(image);}
+ const badge=document.createElement('i');badge.className='map-size';
+ const tier=document.createElement('b');tier.textContent=(map?.sizeName||'').toLocaleUpperCase('tr');
+ const dimensions=document.createElement('em');dimensions.textContent=map?`${map.width}×${map.depth}`:'';
+ badge.append(tier,dimensions);
+ const name=document.createElement('strong');name.textContent=map?.name||mapId;
+ const tally=document.createElement('span');tally.className='vote-tally';
+ tally.textContent=vote.closed&&vote.winner===mapId?`✓ Seçildi · ${count} oy`:count===1?'1 oy':`${count} oy`;
+ const bar=document.createElement('u');bar.style.width=(total?Math.round(count/total*100):0)+'%';
+ card.append(badge,name,tally,bar);
+ card.onclick=()=>castVote(mapId);
+ return card;
+}
+function renderVote(id,s){
+ const box=$(id),vote=s?.vote;
+ // Oylama yalnızca tur bitiminde vardır; başka her fazda kutu tamamen kalkar.
+ if(!vote||!['end','waiting'].includes(s.phase)&&s.currentPhase!=='end'){box.classList.add('hidden');box.replaceChildren();return;}
+ const seconds=Math.max(0,Math.ceil((vote.until-s.now)/1000));
+ const total=vote.options.reduce((sum,mapId)=>sum+(vote.counts?.[mapId]||0),0);
+ const signature=[id,vote.options.join(),vote.mine,vote.closed,vote.winner,total,seconds,vote.options.map(m=>vote.counts?.[m]).join()].join('|');
+ if(box.dataset.signature===signature)return;
+ box.dataset.signature=signature;box.classList.remove('hidden');
+ const heading=document.createElement('div');heading.className='vote-heading';
+ const title=document.createElement('strong');
+ title.textContent=vote.closed?'Sonraki mekân seçildi':'Sonraki mekânı seç';
+ const clock=document.createElement('span');
+ clock.textContent=vote.closed?(mapOf(vote.winner)?.name||''):`${seconds} sn`;
+ clock.className='vote-clock'+(!vote.closed&&seconds<=10?' urgent':'');
+ heading.append(title,clock);
+ const grid=document.createElement('div');grid.className='vote-grid';
+ grid.append(...vote.options.map(mapId=>voteCardFor(mapId,vote,total)));
+ const note=document.createElement('small');
+ note.textContent=vote.closed?'Kurucu turu başlatınca bu haritada oynanır.'
+  :total?`${total} oy verildi · eşitlikte soldaki seçilir`
+  :'Kimse oy vermezse soldaki harita seçilir.';
+ box.replaceChildren(heading,grid,note);
+}
+function castVote(mapId){
+ request('vote',mapId,r=>{if(r.error)toast(r.error);});
+}
+function renderResult(s){renderVote('result-vote',s);$('winner').textContent=s.winner==='hunter'?'Avcılar kazandı!':'Saklananlar kazandı!';$('result-text').textContent=s.reason||'';$('again').disabled=s.host!==myId;$('result-roster').replaceChildren(...s.players.filter(p=>p.team==='hider').map(p=>{const d=document.createElement('div'),name=document.createElement('span'),status=document.createElement('small');name.textContent=p.name;status.textContent=p.status==='found'?'BULUNDU':'SAKLI KALDI';d.append(name,status);return d;}));}
 socket.on('state',s=>{if(!myId)return;state=s;const p=me();if(!p)return;if(s.round!==lastRound&&['brief','prep'].includes(s.phase)){lastRound=s.round;spectatorMode='free';spectatorTarget=null;entered=false;yaw=p.yaw||0;pitch=0;stopInput();pickerHush='';pickerAuto=false;pickerSignature='';$('picker').classList.add('hidden');}
- if(s.phase==='waiting'){lastPhase='waiting';setScreen('home');$('waiting-note').textContent=`${mapName(s.settings.mapId)} haritasındaki ${phaseName(s.currentPhase).toLocaleLowerCase('tr')}. Oda kurucusu yeni turu başlatınca otomatik katılacaksın.`;$('waiting-code').textContent=s.code;$('waiting-list').textContent=s.players.length>1?`Seninle birlikte ${s.players.length} kişi sonraki turu bekliyor.`:'Sırada şu an yalnızca sen varsın.';if(!$('waiting-dialog').open)$('waiting-dialog').showModal();return;}
+ if(s.phase==='waiting'){lastPhase='waiting';setScreen('home');renderVote('waiting-vote',s);$('waiting-note').textContent=`${mapName(s.settings.mapId)} haritasındaki ${phaseName(s.currentPhase).toLocaleLowerCase('tr')}. Oda kurucusu yeni turu başlatınca otomatik katılacaksın.`;$('waiting-code').textContent=s.code;$('waiting-list').textContent=s.players.length>1?`Seninle birlikte ${s.players.length} kişi sonraki turu bekliyor.`:'Sırada şu an yalnızca sen varsın.';if(!$('waiting-dialog').open)$('waiting-dialog').showModal();return;}
  if($('waiting-dialog').open)$('waiting-dialog').close();
  if(s.phase!==lastPhase){lastPhase=s.phase;if(s.phase==='end'){closeDialogs();releaseMouse();renderResult(s);const code=s.code,round=s.round;setTimeout(()=>{if(state?.code===code&&state.round===round&&state.phase==='end')setScreen('result');},1500);}else setScreen(s.phase==='lobby'?'lobby':'hud');}
- if(s.phase==='lobby')renderLobby(s);world.sync(s,myId);if(!active)return;
+ if(s.phase==='lobby')renderLobby(s);if(s.phase==='end')renderVote('result-vote',s);world.sync(s,myId);if(!active)return;
  const seconds=Math.max(0,Math.ceil((s.until-s.now)/1000));$('timer').textContent=s.phase==='brief'?'HAZIR':`${Math.floor(seconds/60).toString().padStart(2,'0')}:${(seconds%60).toString().padStart(2,'0')}`;
  const hiders=s.players.filter(q=>q.team==='hider'),found=hiders.filter(q=>q.status==='found').length,hunting=p.role==='hunter';$('score').textContent=`${found} / ${hiders.length} BULUNDU`;$('phase').textContent=s.phase==='prep'?'SAKLANMA ZAMANI':hunting?'AVCI':'SAKLANAN';$('objective').textContent=hunting?'Şüpheli eşyaları ıslat.':p.propId?'Odaya karış. Islanma.':'Yaklaş, seç, nesneye dönüş.';$('mini-objective').textContent=hunting?'Bir oyuncuyu %100 suyla doldur ve açığa çıkar.':p.propId?'İlk seçim senindi. Sonraki 3 değişim rastgele.':'Yakındaki eşyalar aşağıda listeli: 1–8 ile seç ya da bakıp E.';
  $('controls-hider').classList.toggle('hidden',hunting);$('controls-hunter').classList.toggle('hidden',!hunting);// Zıplama iki tarafta da var, o yüzden dokunmatik düğmesi de rol ayrımı yapmaz: saklanan tezgaha
