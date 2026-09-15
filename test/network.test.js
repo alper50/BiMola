@@ -4,6 +4,7 @@ import {io as client} from 'socket.io-client';
 import {createGameServer} from '../server.js';
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 const wait=(s,event)=>new Promise(resolve=>s.once(event,resolve));
+const waitFor=(s,event,match,limit=40)=>new Promise((resolve,reject)=>{let seen=0;const step=packet=>{if(match(packet))return resolve(packet);if(++seen>=limit)return reject(new Error(`${event}: beklenen paket ${limit} yayında gelmedi`));s.once(event,step);};s.once(event,step);});
 async function setup(){const g=createGameServer();try{await new Promise((resolve,reject)=>{g.http.once('error',reject);g.http.listen(0,'127.0.0.1',resolve);});return {g,url:'http://127.0.0.1:'+g.http.address().port};}catch(error){g.close();throw error;}}
 async function connect(url){const s=client(url,{transports:['websocket']});await wait(s,'connect');return s;}
 test('two clients: configurable lobby, permissions, chosen props, water shots, host transfer and cleanup',{timeout:12000},async()=>{
@@ -62,7 +63,7 @@ test('active rooms are listed and a mid-round joiner waits for the next round',{
   await delay(400);const waitingState=wait(late,'state'),joined=await late.emitWithAck('join',{name:'Sonradan',role:'hider',code:made.code});assert.equal(joined.waiting,true);const r=g.rooms.get(made.code);assert.equal(r.players[late.id].status,'waiting');
   const waiting=await waitingState;assert.equal(waiting.phase,'waiting');assert.equal(waiting.currentPhase,'prep');assert.equal(waiting.objects,undefined);
   const playing=await wait(host,'state');assert.equal(playing.players.some(p=>p.id===late.id),false,'sıradaki oyuncu devam eden turdan gizlenir');
-  r.phase='end';const admittedState=wait(late,'state');assert.ok((await host.emitWithAck('start')).ok);assert.equal(r.players[late.id].waiting,false);assert.equal(r.players[late.id].status,'alive');
+  r.phase='end';const admittedState=waitFor(late,'state',p=>p.phase==='prep');assert.ok((await host.emitWithAck('start')).ok);assert.equal(r.players[late.id].waiting,false);assert.equal(r.players[late.id].status,'alive');
   const admitted=await admittedState;assert.equal(admitted.phase,'prep');assert.ok(Number.isFinite(admitted.players.find(p=>p.id===late.id).x));
  }finally{host?.disconnect();player?.disconnect();late?.disconnect();g.close();}
 });

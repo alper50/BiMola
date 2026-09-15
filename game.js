@@ -17,6 +17,10 @@ export const LEAN_PROP_COUNT=10;
 export const DEFAULT_SMASH=50,MIN_SMASH=5,MAX_SMASH=200;
 export const DEFAULT_IDLE=30,MIN_IDLE=10,MAX_IDLE=120;
 export const DEFAULT_HITS=3,MIN_HITS=1,MAX_HITS=10,DEFAULT_ESCAPE=1.1,MIN_ESCAPE=1,MAX_ESCAPE=2;
+// Tur bitince mekânı rastgele dayatmak yerine odaya sormak: iki aday çıkar, herkes oyunu verir.
+// Sıfır kapalı demek — o zaman eski davranış, yani doğrudan rastgele seçim işler. Süre seçenekleri
+// kısa tutuldu: oylama tur arasına eklenen bir bekleme, kendi başına bir faz değil.
+export const VOTE_SECONDS=[0,30,60],DEFAULT_VOTE=60,VOTE_CHOICES=2;
 // Hiders can hop onto counters, tables and beds: JUMP_SPEED clears the 1 m kitchen counter with
 // a little room to spare (apex = JUMP_SPEED^2 / 2*GRAVITY ~ 1.21 m). SPIN_SPEED is how fast a
 // disguise can be turned on the spot, in radians per second.
@@ -26,7 +30,7 @@ export const DEFAULT_HITS=3,MIN_HITS=1,MAX_HITS=10,DEFAULT_ESCAPE=1.1,MIN_ESCAPE
 // için orada bırakılan nesne görülebilir kalır. Duvara asılı parçalar (tablo, perde, duvar rafı)
 // LIFT_MAX_MOUNTED'e kadar çıkar; onlar duvarda durması beklenen, göz alıcı parçalar.
 export const GRAVITY=18,JUMP_SPEED=6.6,SPIN_SPEED=2.4,LIFT_SPEED=1.4,LIFT_MAX=2.2,LIFT_MAX_MOUNTED=3.4;
-export const defaultSettings={mapId:'loft',mapRotate:true,teamSize:3,botMode:'fill',hunterBots:0,hiderBots:0,hideSeconds:20,roundSeconds:180,teamSelection:'choose',swapTeams:true,objectCount:LEAN_PROP_COUNT,decor:MIN_DECOR,idleReveal:DEFAULT_IDLE,waterTrail:true,smashHits:DEFAULT_SMASH,revealHits:DEFAULT_HITS,escapeBoost:DEFAULT_ESCAPE};
+export const defaultSettings={mapId:'loft',mapRotate:true,mapVote:DEFAULT_VOTE,teamSize:3,botMode:'fill',hunterBots:0,hiderBots:0,hideSeconds:20,roundSeconds:180,teamSelection:'choose',swapTeams:true,objectCount:LEAN_PROP_COUNT,decor:MIN_DECOR,idleReveal:DEFAULT_IDLE,waterTrail:true,smashHits:DEFAULT_SMASH,revealHits:DEFAULT_HITS,escapeBoost:DEFAULT_ESCAPE};
 const teams=['hunter','hider'];
 const integer=(v,min,max,fallback)=>Number.isFinite(Number(v))?Math.max(min,Math.min(max,Math.round(Number(v)))):fallback;
 const decimal=(v,min,max,fallback)=>Number.isFinite(Number(v))?Math.max(min,Math.min(max,Math.round(Number(v)*20)/20)):fallback;
@@ -35,6 +39,7 @@ export function sanitizeSettings(input={},previous=defaultSettings){
  const settings={...defaultSettings,...previous};
  if(validMap(input.mapId))settings.mapId=input.mapId;
  if('mapRotate'in input)settings.mapRotate=!!input.mapRotate;
+ if('mapVote'in input)settings.mapVote=VOTE_SECONDS.includes(Number(input.mapVote))?Number(input.mapVote):settings.mapVote;
  if('teamSize'in input)settings.teamSize=integer(input.teamSize,1,12,settings.teamSize);
  if(['off','fill','custom'].includes(input.botMode))settings.botMode=input.botMode;
  for(const key of ['hunterBots','hiderBots'])settings[key]=integer(input[key]??settings[key],0,settings.teamSize,0);
@@ -72,6 +77,46 @@ export function syncBots(r){
   }
  }
 }
+// Oylama yalnızca rotasyon açıkken anlamlı: harita zaten sabitse seçecek bir şey yok. Adaylar
+// mevcut haritanın dışından gelir, yani aynı mekân üst üste gelmez — rotasyonun eski kuralı korunur.
+export function openVote(r,now=Date.now()){
+ r.vote=null;
+ const seconds=r.settings?.mapVote|0;
+ if(!seconds||!r.settings?.mapRotate||r.mapPinned)return null;
+ const others=MAP_CHOICES.map(m=>m.id).filter(id=>id!==r.settings.mapId);
+ if(others.length<VOTE_CHOICES)return null;
+ const pool=[...others];
+ for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
+ r.vote={options:pool.slice(0,VOTE_CHOICES),until:now+seconds*1000,votes:{},closed:false,winner:null};
+ return r.vote;
+}
+// Oy sayımı tek yerde: hem süre dolunca hem kurucu erken başlatınca aynı kural işler. Eşitlikte ve
+// hiç oy çıkmadığında ilk aday kazanır — beraberliği bozmak için ikinci bir rastgelelik katmak,
+// oyuncunun gördüğü sıralamayı yalancı çıkarırdı.
+export function tallyVote(vote){
+ const counts=Object.fromEntries(vote.options.map(id=>[id,0]));
+ for(const choice of Object.values(vote.votes))if(choice in counts)counts[choice]++;
+ let winner=vote.options[0];
+ for(const id of vote.options)if(counts[id]>counts[winner])winner=id;
+ return {counts,winner};
+}
+export function closeVote(r,now=Date.now()){
+ const vote=r.vote;if(!vote||vote.closed)return vote?.winner||null;
+ vote.winner=tallyVote(vote).winner;vote.closed=true;vote.until=now;
+ notice(r,`Sonraki mekân: ${MAP_CHOICES.find(m=>m.id===vote.winner)?.name||vote.winner}`,now);
+ return vote.winner;
+}
+// Oy, oyuncunun bu turu oynamış olmasına bağlı değil: sıradaki turu bekleyenler de o turu
+// oynayacak, o yüzden mekânı seçmede sözleri vardır. Botlar oy vermez.
+export function castVote(r,p,mapId,now=Date.now()){
+ if(r.phase!=='end')return {ok:false,error:'Oylama yalnızca tur bitiminde açıktır.'};
+ const vote=r.vote;
+ if(!vote||vote.closed)return {ok:false,error:'Oylama kapandı.'};
+ if(!p||p.bot)return {ok:false,error:'Oy kullanamazsın.'};
+ if(!vote.options.includes(mapId))return {ok:false,error:'Bu harita adaylar arasında değil.'};
+ vote.votes[p.id]=mapId;
+ return {ok:true,mapId,...tallyVote(vote)};
+}
 export function configureRoom(r,changes={},actor){
  if(actor!==r.host)return {error:'Oda ayarlarını yalnızca kurucu değiştirebilir.'};
  if(!['lobby','end'].includes(r.phase))return {error:'Ayarlar tur bittikten sonra değiştirilebilir.'};
@@ -82,7 +127,11 @@ export function configureRoom(r,changes={},actor){
   if(settings.botMode==='custom'&&settings[team+'Bots']+humans>settings.teamSize)return {error:'Oyuncu ve bot sayısı takım kapasitesini aşıyor.'};
  }
  if(settings.mapId!==r.settings.mapId)r.mapPinned=true;
- r.settings=settings;syncBots(r);return {ok:true,settings:r.settings};
+ r.settings=settings;syncBots(r);
+ // Kurucunun elle seçtiği harita oylamayı geçersiz kılar; rotasyonu ya da oylamayı kapatmak da
+ // açık bir oylamayı kapatır, yoksa oyuncular sonucu olmayan bir sayaca oy vermeye devam ederdi.
+ if(r.vote&&!r.vote.closed&&(r.mapPinned||!settings.mapRotate||!settings.mapVote))r.vote=null;
+ return {ok:true,settings:r.settings};
 }
 export function setTeam(r,id,team,actor=id){
  if(!teams.includes(team))return {error:'Geçersiz takım.'};
@@ -105,10 +154,13 @@ export function start(r,now=Date.now()){
  // Takımlar yer değiştirirken mekân da değişir: aynı odayı ezberleyen taraf avantaj kazanmasın.
  // Kurucu isterse ayarı kapatıp tek haritada kalabilir.
  if((r.round||0)>0&&r.settings.mapRotate&&!r.mapPinned){
+  // Kurucu süreyi beklemeden başlatırsa oylama o an kapanır: o ana kadarki oylar geçerlidir.
+  const voted=r.vote?closeVote(r,now):null;
   const others=MAP_CHOICES.map(m=>m.id).filter(id=>id!==r.settings.mapId);
-  if(others.length){r.settings.mapId=others[Math.floor(Math.random()*others.length)];r.mapChanged=true;}
+  const next=voted||(others.length?others[Math.floor(Math.random()*others.length)]:null);
+  if(next){r.settings.mapId=next;r.mapChanged=true;}
  }else r.mapChanged=false;
- r.mapPinned=false;
+ r.mapPinned=false;r.vote=null;
  r.round=(r.round||0)+1;r.phase='prep';r.until=now+r.settings.hideSeconds*1000;r.winner=null;r.reason=null;r.shots=[];r.effects=[];r.results=[];r.events=[];r.objects=generateProps(r.settings.objectCount,r.settings.decor,r.settings.mapId);
  if(r.mapChanged){r.mapChanged=false;notice(r,`Yeni mekân: ${MAP_CHOICES.find(m=>m.id===r.settings.mapId)?.name||r.settings.mapId}`,now);}
  for(const p of Object.values(r.players)){p.stillSpot=null;p.stillAt=now;p.leakAt=0;p.exposedUntil=0;}r.initialObjects=r.objects.map(o=>({...o}));
@@ -276,6 +328,8 @@ function botInput(r,p,now){
 }
 export function tick(r,now,dt){
  if(r.phase==='prep'&&now>=r.until){for(const p of Object.values(r.players))if(p.bot&&p.team==='hider'&&p.status==='alive'&&!p.propId)autoHide(r,p);r.phase='play';r.until=now+r.settings.roundSeconds*1000;notice(r,'Su savaşı başladı. Saklananları bul!',now);}
+ // Oylama sayacı tur bittikten sonra işler, yani oyun döngüsünün geri kalanı uyurken de ilerler.
+ if(r.phase==='end'&&r.vote&&!r.vote.closed&&now>=r.vote.until)closeVote(r,now);
  if(!['prep','play'].includes(r.phase))return;
  r.effects=(r.effects||[]).filter(e=>now-e.at<effectLife(e.kind));
  dt=Math.max(0,Math.min(.1,dt));r.shots=r.shots.filter(s=>now-s.at<650);
@@ -369,15 +423,22 @@ export function tick(r,now,dt){
   if(!hunters.length){r.phase='end';r.winner='hider';r.reason='Tüm avcılar odadan ayrıldı.';}
   else if(!hiders.some(p=>p.status==='alive')){r.phase='end';r.winner='hunter';r.reason='Bütün saklananlar bulundu.';}
   else if(now>=r.until){r.phase='end';r.winner='hider';r.reason=`Süre doldu. ${hiders.filter(p=>p.status==='alive').length} saklanan kurtuldu!`;}
+  if(r.phase==='end')openVote(r,now);
  }
+}
+// Tur bittiği için gizlenecek bir şey yok: sayımlar herkese açık gider, oylamanın anlamı da bu.
+function votePacket(r,id){
+ const vote=r.vote;if(!vote)return null;
+ const {counts}=tallyVote(vote);
+ return {options:vote.options,until:vote.until,closed:vote.closed,winner:vote.winner,counts,mine:vote.votes[id]||null,cast:Object.keys(vote.votes).length};
 }
 export function view(r,id,now=Date.now()){
  const me=r.players[id];if(!me)return null;
- if(me.waiting)return {code:r.code,host:r.host,phase:'waiting',currentPhase:r.phase,until:r.until||0,now,round:r.round||0,settings:r.settings,practice:false,players:Object.values(r.players).filter(p=>!p.bot&&p.waiting).map(p=>({id:p.id,name:p.name,team:p.team,waiting:true}))};
+ if(me.waiting)return {code:r.code,host:r.host,phase:'waiting',currentPhase:r.phase,until:r.until||0,now,round:r.round||0,settings:r.settings,practice:false,vote:votePacket(r,id),players:Object.values(r.players).filter(p=>!p.bot&&p.waiting).map(p=>({id:p.id,name:p.name,team:p.team,waiting:true}))};
  const inMatch=['prep','play','end','brief'].includes(r.phase),blind=me.team==='hunter'&&['prep','brief'].includes(r.phase);
  const spectator=me.status==='found'?Object.values(r.players).find(p=>p.team===me.team&&p.status==='alive'):null,eye=spectator||me;
  const objects=(blind?r.initialObjects:r.objects)||[];
- const packet={code:r.code,host:r.host,phase:r.phase,until:r.until||0,now,round:r.round||0,settings:r.settings,practice:!!r.practice,winner:r.winner,reason:r.reason,spectating:spectator?.id,
+ const packet={code:r.code,host:r.host,phase:r.phase,until:r.until||0,now,round:r.round||0,settings:r.settings,practice:!!r.practice,winner:r.winner,reason:r.reason,spectating:spectator?.id,vote:votePacket(r,id),
   players:Object.values(r.players).filter(p=>!p.waiting).map(p=>{
    const own=p.id===id,teammate=p.team===me.team,transformed=!!p.propId;
    const visible=own||inMatch&&!blind&&(teammate||!transformed&&p.status==='alive'&&(me.status==='found'||dist(eye,p)<35&&sight(eye,p,r.objects)));

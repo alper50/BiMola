@@ -17,7 +17,25 @@ npm start
 
 **Kendi odanı kur → Harita** bölümünde haritalar önizlemeli kartlar olarak seçilir; **Hemen oyna** ekranında da aynı kartlar vardır. Oda sahibi haritayı lobide veya tur bitiminde değiştirebilir; devam eden tur sırasında değiştiremez. Mevcut Güneşli Ev korunur.
 
-**Turlar arasında harita değişimi varsayılan olarak açıktır:** yeni turda takımlar yer değiştirirken mekân da rastgele değişir (aynı harita üst üste gelmez), böylece bir odayı ezberleyen taraf avantaj kazanmaz. Kurucu tur bitiminde bir harita seçerse o tur onun seçtiği haritada başlar, rotasyon sonraki turda devralır; "Hep aynı haritada kal" seçilirse mekân sabitlenir.
+**Boyut etiketi:** Her harita kartının sol üstünde mekânın büyüklüğü yazar — kademe ve metre. Etiket haritanın kendi odasından hesaplanır, elle girilmez: bir haritanın ölçüsü değişirse rozet de kendiliğinden değişir. Kart seçilince altyazının altında alan ve önerilen kadro açılır; aynı kademe açık oda listesinde ve lobi özetinde de görünür.
+
+| Kademe | Ölçü | Alan | Haritalar | Önerilen kadro |
+|---|---|---|---|---|
+| Standart | 28 × 36 m | 1.008 m² | Güneşli Ev, Kıyı Pazarı, Çatı Serası, Son Jeton, Minik Mucitler, Bavul Molası | 1v1 – 6v6 |
+| Büyük | 44 × 48 m | 2.112 m² | Sprint Ofisi | 3v3 – 8v8 |
+| Devasa | 56 × 72 m | 4.032 m² | Son Sevkiyat | 6v6 – 12v12 |
+
+Önerilen kadro bir tavsiyedir, sınır değildir: her harita 1–12 kişilik takımlarla açılabilir. Kademe eşikleri alana göredir, yani ileride eklenen bir harita ölçüsüne uygun etiketi kendiliğinden alır.
+
+**Turlar arasında harita değişimi varsayılan olarak açıktır:** yeni turda takımlar yer değiştirirken mekân da değişir (aynı harita üst üste gelmez), böylece bir odayı ezberleyen taraf avantaj kazanmaz. Kurucu tur bitiminde bir harita seçerse o tur onun seçtiği haritada başlar, rotasyon sonraki turda devralır; "Hep aynı haritada kal" seçilirse mekân sabitlenir.
+
+**Harita oylaması (varsayılan 60 saniye):** mekânı rastgele dayatmak yerine oda seçer. Tur biter bitmez, oynanan haritanın dışından **iki aday** çıkar ve sonuç ekranında geri sayımlı bir oylama açılır. Herkes bir adaya tıklar, sayımlar canlı görünür, oy fikir değiştirerek tekrar verilebilir — son tıklanan sayılır. Süre dolunca çoğunluğun haritası kilitlenir; turu yine kurucu başlatır, yani kimse yarı yolda kalmaz.
+
+- **Hiç oy çıkmazsa** ya da **oylar eşit kalırsa** soldaki (ilk) aday seçilir. Bu yüzden beraberliği bozmak için ikinci bir rastgelelik katılmaz: ekranda gördüğün sıra gerçek sıradır.
+- **Kurucu süreyi beklemeden başlatabilir**; oylama o an kapanır ve o ana kadar önde olan harita kullanılır.
+- **Sıradaki turu bekleyenler de oy kullanır** — o turu onlar da oynayacak. Botlar oy vermez.
+- **Kurucu ayarlardan elle bir harita seçerse** oylama iptal olur ve onun seçtiği haritada oynanır.
+- Ayar **kapalı · 30 sn · 60 sn** değerlerini alır. Kapalıyken eski davranış aynen işler: harita doğrudan rastgele seçilir. Oylama yalnızca rotasyon açıkken vardır.
 
 - **Kıyı Pazarı:** çizgili tenteli tezgâhlar, meyve kasaları, çeşmeli meydan ve kahve köşesi.
 - **Çatı Serası:** cam sera, bitki kasaları, bakım masaları ve çatı terası. Cam suyu durdurur; görüşü kesmez. Kuzey, güney ve yan çıkışlar vardır.
@@ -25,7 +43,7 @@ npm start
 - **Minik Mucitler:** güneş sistemi sergisi, robot ve deney masaları, kitaplıklar; iki rampayla çıkılan 3 m yüksekliğinde üst galeri.
 - **Bavul Molası:** resepsiyon, bagaj alanı, oturma salonu ve dekoratif su avlusu. Avlu geçilebilir; yüzme mekaniği yoktur.
 
-Her haritanın mimarisi, nesne havuzu ve bot yolları ayrıdır. Eşya değişimi, kopyalar, isabet ve yoğunluk ayarları ortak çalışır. Yeni haritalarda 21 yeni eşya türü bulunur; büyük nesnelerin üzerindeki küçük eşyalar bağımsız seçilir. Müzedeki yükseltme sınırı bulunulan katın zemininden ölçülür. Gönderilen görsellerden palet, malzeme ve yerleşim fikri alınmıştır; sahneler gerçek zamanlı geometriyle yeniden kurulmuştur, fotoğrafların birebir 3D kopyası değildir.
+Her haritanın mimarisi, nesne havuzu ve bot yolları ayrıdır. Eşya değişimi, kopyalar, isabet ve yoğunluk ayarları ortak çalışır. Yeni haritalarda 20 yeni eşya türü bulunur; büyük nesnelerin üzerindeki küçük eşyalar bağımsız seçilir. Müzedeki yükseltme sınırı bulunulan katın zemininden ölçülür. Gönderilen görsellerden palet, malzeme ve yerleşim fikri alınmıştır; sahneler gerçek zamanlı geometriyle yeniden kurulmuştur, fotoğrafların birebir 3D kopyası değildir.
 
 ## Avcı karakteri
 
@@ -181,7 +199,7 @@ Aynı ağdaki oyuncular sunucu bilgisayarının yerel IP adresi ve 3000 portuyla
 npm test
 ```
 
-Nesne seçimi, üç rastgele değişim, su miktarının korunması, duvar arkasına isabetin engellenmesi, yeniden doldurma, hazırlık gizliliği, kapasite/bot ayarları, yetki kontrolleri ve gerçek Socket.IO bağlantıları test edilir. Avcı karakteri tarafında: katalog bütünlüğü, sunucunun tanımadığı görünüm adını reddedip varsayılana düşmesi, seçimin tur sıfırlaması ve takım değişimini atlatması, bot takımının katalogda dolaşması, üç kıyafetin insan ölçeğinde sonlu geometri kurması ve kıyafet katmanının yüz bölgesine hiç dokunmaması sınanır — geometri testi tarayıcı veya WebGL gerektirmez. Su izi tarafında: ıslak saklananın mesafeye bağlı damlaması, duranın hiç damlatmaması, izin yalnızca avcılara ve damlayana gitmesi, avcının ve hazırlık fazının iz üretmemesi, damlanın 5 sn patlama efektlerinin 1,8 sn yaşaması, ayarın boolean'a indirilmesi, kapalıyken hiç efekt çıkmaması ve yeni turun izi sıfırlaması sınanır. Eğilme tarafında: göz ve namlunun birlikte inmesi, masaya 0,8 ve 1,2 m'de ayakta duran atışın tablaya, eğilen atışın masa altındaki kupaya gitmesi, tuş bırakılınca ve bayat girdide doğrulma, yalnızca avcıya işlemesi, yavaşlama, eğilirken zıplayamama, çarpışmanın değişmemesi ve tur sıfırlaması sınanır. Bot simülasyonları 3'e 3, 6'ya 6 ve 12'ye 12 çalıştırılmıştır. Bu, 24 farklı cihazla gerçek ağ yük testi yapıldığı anlamına gelmez.
+Harita oylaması tarafında: tur bitince iki farklı adayın açılması ve oynanan haritanın aday olmaması, çoğunluğun kazanması, oysuzlukta ve eşitlikte ilk adayın seçilmesi, oyun değiştirilebilmesi, kurucunun erken başlatınca o anki önde olanı alması, bot ve aday dışı oyların reddi, kapalı ayarda eski rastgele seçimin işlemesi, kurucunun harita seçmesinin oylamayı iptal etmesi, bekleyen oyuncunun hem oy verebilmesi hem paketinde oylamayı görmesi ve sayımların herkese açık gitmesi sınanır. Nesne seçimi, üç rastgele değişim, su miktarının korunması, duvar arkasına isabetin engellenmesi, yeniden doldurma, hazırlık gizliliği, kapasite/bot ayarları, yetki kontrolleri ve gerçek Socket.IO bağlantıları test edilir. Avcı karakteri tarafında: katalog bütünlüğü, sunucunun tanımadığı görünüm adını reddedip varsayılana düşmesi, seçimin tur sıfırlaması ve takım değişimini atlatması, bot takımının katalogda dolaşması, üç kıyafetin insan ölçeğinde sonlu geometri kurması ve kıyafet katmanının yüz bölgesine hiç dokunmaması sınanır — geometri testi tarayıcı veya WebGL gerektirmez. Su izi tarafında: ıslak saklananın mesafeye bağlı damlaması, duranın hiç damlatmaması, izin yalnızca avcılara ve damlayana gitmesi, avcının ve hazırlık fazının iz üretmemesi, damlanın 5 sn patlama efektlerinin 1,8 sn yaşaması, ayarın boolean'a indirilmesi, kapalıyken hiç efekt çıkmaması ve yeni turun izi sıfırlaması sınanır. Eğilme tarafında: göz ve namlunun birlikte inmesi, masaya 0,8 ve 1,2 m'de ayakta duran atışın tablaya, eğilen atışın masa altındaki kupaya gitmesi, tuş bırakılınca ve bayat girdide doğrulma, yalnızca avcıya işlemesi, yavaşlama, eğilirken zıplayamama, çarpışmanın değişmemesi ve tur sıfırlaması sınanır. Bot simülasyonları 3'e 3, 6'ya 6 ve 12'ye 12 çalıştırılmıştır. Bu, 24 farklı cihazla gerçek ağ yük testi yapıldığı anlamına gelmez.
 
 Oda ve tur durumu bellektedir, sunucu yeniden başlayınca silinir. Hesap/kalıcı ilerleme/otomatik yeniden bağlanma yoktur. Botlar basit nesne inceleme davranışı kullanır; insan oyuncuların stratejik seviyesinde değildir. Sahne, fotoğraf varlıkları yerine ayrıntılı geometri ve üretilen malzeme dokularıyla oluşturulmuştur. WebGL 2 ve donanım hızlandırması gerekir. Yazı tipleri Google Fonts üzerinden yüklenir, çevrimdışıyken sistem yazı tipleri kullanılır.
 
