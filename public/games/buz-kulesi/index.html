@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f3f4fc">
+  <title>Buz Kulesi · BiMola</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/">BiMola <span>/ Buz Kulesi</span></a>
+    <div class="top-actions"><button id="sound" type="button" aria-pressed="true">♫ Ses açık</button><button id="rules-open" type="button">Nasıl oynanır?</button></div>
+  </header>
+
+  <main>
+    <section id="home" class="home">
+      <div class="home-copy">
+        <p class="eyebrow">ZIPLA · KOMBOLA · DÜŞME</p>
+        <h1>Kule yükseliyor.<br><em>Sen de yüksel.</em></h1>
+        <p class="intro">Duvardan duvara koş, hızlan ve katları atlayarak kombo yap. Ekran hızlanırken alta kalan düşer; son ayakta kalan kazanır.</p>
+        <form id="join-form" class="card join">
+          <label>Oyuncu adın<input id="name" maxlength="18" required autocomplete="nickname" placeholder="Adın"></label>
+          <label>Oda kodu <small>Yeni oda kurmak için boş bırak.</small><input id="code" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="1234" autocomplete="off"></label>
+          <div class="character-chip"><span id="home-portrait" class="chip-portrait"></span><span class="chip-text"><small>BiMola karakterin</small><b id="home-character-name"></b></span><button type="button" class="ghost" data-character-change>Değiştir</button></div>
+          <button class="primary" id="join-button">Kuleye gir ↗</button>
+          <p id="join-error" class="error" role="alert"></p>
+        </form>
+        <p class="muted small">1–12 kişi · Klavye ile oynanır · Telefon desteği yakında</p>
+      </div>
+      <aside class="home-side">
+        <img class="poster" src="./cover.svg" alt="Buzdan basamaklarla dolu bir kulede zıplayan karakterler" width="960" height="600">
+        <section class="card records">
+          <div class="card-head"><h2>Kule defterin</h2><button id="alltime-open" type="button" class="ghost">Tüm zamanlar ↗</button></div>
+          <div id="home-records" class="record-grid"></div>
+          <p id="records-note" class="muted small"></p>
+        </section>
+      </aside>
+    </section>
+
+    <section id="room" hidden>
+      <div class="room-head">
+        <div><p id="room-code" class="eyebrow"></p><h1 id="title">Kule hazır.</h1><p id="hint" class="muted"></p></div>
+        <div class="actions"><button id="invite" type="button">Daveti kopyala</button><button id="leave" type="button">Odadan çık</button></div>
+      </div>
+      <div class="layout">
+        <section class="stage-wrap">
+          <div id="stage" class="stage">
+            <canvas id="tower" tabindex="0" aria-label="Kule. Ok tuşları veya A ve D ile koş, Space ile zıpla, E ile lidere sabotaj gönder."></canvas>
+            <div class="hud" aria-live="off">
+              <div class="hud-left"><span class="stat"><b id="hud-floor">0</b><small>KAT</small></span><span class="stat"><b id="hud-score">0</b><small>PUAN</small></span></div>
+              <div id="hud-combo" class="combo" hidden><b id="combo-floors">0</b><small>KAT KOMBO</small><i id="combo-timer"></i></div>
+              <div id="hud-charges" class="charges"></div>
+            </div>
+            <div id="banner" class="banner" hidden></div>
+            <div id="countdown" class="countdown" hidden></div>
+            <p id="spectate" class="spectate" hidden></p>
+            <div id="results" class="results" hidden>
+              <section class="results-card" role="dialog" aria-labelledby="results-title">
+                <p class="eyebrow">MAÇ BİTTİ</p><h2 id="results-title"></h2>
+                <div id="awards" class="awards"></div>
+                <table><thead><tr><th>Sıra</th><th>Oyuncu</th><th>Kat</th><th>En iyi kombo</th><th>Puan</th></tr></thead><tbody id="ranking"></tbody></table>
+                <p id="results-note" class="muted small"></p>
+                <div class="results-actions"><button id="results-restart" class="primary" type="button">Yeni maç</button><button id="results-close" type="button">Kapat</button></div>
+              </section>
+            </div>
+          </div>
+          <p class="muted small keys">←/→ veya A/D: koş · Space: zıpla (basılı tut, sürekli zıpla) · E: lidere sabotaj · Elenince ←/→: izlenen oyuncu</p>
+        </section>
+        <aside class="panel">
+          <section><p class="eyebrow">TIRMANICILAR</p><ol id="players" class="players"></ol></section>
+          <section id="settings" class="settings">
+            <p class="eyebrow">ODA AYARLARI</p>
+            <label>Kayma hızı<select id="speed"></select></label>
+            <label>Başlangıç bölgesi<select id="start-zone"><option value="0">Buz (kolay)</option><option value="1">Taş (orta)</option><option value="2">Kristal (zor)</option></select></label>
+            <label class="toggle"><input id="sabotage" type="checkbox"> Sabotaj açık</label>
+            <small id="settings-hint" class="muted"></small>
+          </section>
+          <section><p class="eyebrow">KARAKTERİN</p><div class="character-chip"><span id="room-portrait" class="chip-portrait"></span><span class="chip-text"><small>BiMola karakterin</small><b id="room-character-name"></b></span><button type="button" class="ghost" data-character-change>Değiştir</button></div></section>
+          <button id="start" class="primary" type="button">Maçı başlat</button>
+          <section><p class="eyebrow">KULEDEN HABERLER</p><ol id="feed" class="feed"></ol></section>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <p id="notice" class="notice" role="status" aria-live="polite"></p>
+
+  <dialog id="rules">
+    <form method="dialog">
+      <button class="close" aria-label="Kapat">✕</button>
+      <h2>Zıpla. Kombola. Düşme.</h2>
+      <ol>
+        <li><b>←/→</b> veya <b>A/D</b> ile koş, <b>Space</b> ile zıpla. Space'i basılı tutarsan her inişte yeniden zıplarsın.</li>
+        <li>Ne kadar hızlı koşarsan o kadar yükseğe zıplarsın. Duvara çarpınca hızını kaybetmez, geri sekersin: duvardan duvara koşarak hız topla.</li>
+        <li>Basamakların içinden alttan geçebilirsin; yalnız düşerken üstlerine basarsın.</li>
+        <li>Üç saniye sonra ekran yukarı kaymaya başlar ve her 30 saniyede hızlanır. Ekranın altında kalan düşer.</li>
+        <li><b>Kombo:</b> her biri en az iki kat atlayan zıplamaları üç saniye içinde arka arkaya yap. En az iki zıplama ve toplam dört kat geçerli bir kombodur ve <b>kat sayısının karesi</b> kadar puan verir. Puan: en yüksek kat × 10 + kombo puanları.</li>
+        <li><b>Sabotaj:</b> 10 katlık ve daha büyük her kombo bir sabotaj hakkı verir (en fazla 2). <b>E</b> hakkı lidere gönderir; lider sensen ikinci sıradakine gider. Buzlanma zemini kaygan yapar, Rüzgâr iter, Sis yukarıyı kapatır. Sabotaj yiyen 6 saniye korunur; ilk 10 saniyede sabotaj yok.</li>
+        <li>Diğer oyuncular yarı saydam hayaletler olarak görünür, çarpışma yoktur. Sağdaki çubuk herkesin katını gösterir.</li>
+        <li>Son rakip de düştüğünde kalan oyuncu kazanır ama rekor için düşene kadar tırmanabilir. Sekmeyi arka plana alırsan karakterin durur ve düşersin.</li>
+      </ol>
+    </form>
+  </dialog>
+  <dialog id="alltime-dialog">
+    <button class="close" type="button" data-close aria-label="Kapat">✕</button>
+    <p class="eyebrow">KULE DEFTERİ</p><h2>Tüm zamanlar</h2>
+    <p class="muted small">Sıralama tek maçtaki en yüksek puana göre.</p>
+    <ol id="alltime-board" class="alltime"></ol>
+    <p id="alltime-note" class="muted small" role="status"></p>
+    <button class="primary" type="button" data-close>Kuleye dön</button>
+  </dialog>
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

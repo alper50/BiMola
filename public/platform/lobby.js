@@ -1,10 +1,19 @@
-import {readName, saveName} from './profile.js';
+import {readName, saveName, readCharacter} from './profile.js';
+import {characterFor} from './characters.js';
+import {portrait} from './portrait.js';
 
 const $ = id => document.getElementById(id);
 const phases = {lobby: 'Oyuncular bekleniyor', prep: 'Saklanma başladı', play: 'Tur sürüyor', end: 'Yeni tur bekleniyor'};
 let games = [], rooms = [], filter = 'all', timer, roomRequest, catalogRequest, joinRequest, disposed = false;
 $('nickname').value = readName();
 $('nickname').addEventListener('change', event => { event.target.value = saveName(event.target.value); });
+function showCharacter() {
+  const character = characterFor(readCharacter());
+  $('character').replaceChildren(portrait(character.id, 30, 36)); $('character').title = `Karakterin: ${character.name} · değiştir`;
+}
+// The picker is loaded on demand; the lobby itself only draws the small portrait.
+$('character').addEventListener('click', async () => { await (await import('./character-picker.js')).pickCharacter(); showCharacter(); });
+showCharacter();
 
 async function json(url, signal) {
   const response = await fetch(url, {cache: 'no-store', signal});
@@ -22,7 +31,7 @@ function renderGames() {
     const image = fragment.querySelector('img');
     image.src = game.cover;
     fragment.querySelector('.cover-label').textContent = available ? game.category : 'Yakında';
-    fragment.querySelector('.game-meta').textContent = `${game.minPlayers}–${game.maxPlayers} kişi · ${game.duration}${game.bots ? ' · Botlarla da oynanır' : ''}`;
+    fragment.querySelector('.game-meta').textContent = `${game.minPlayers}–${game.maxPlayers} kişi · ${game.duration}${game.bots ? ' · Botlarla da oynanır' : ''}${game.characters ? ' · Karakterinle' : ''}`;
     fragment.querySelector('h3').textContent = game.name;
     fragment.querySelector('.game-description').textContent = game.description;
     fragment.querySelector('.game-input').textContent = game.input;

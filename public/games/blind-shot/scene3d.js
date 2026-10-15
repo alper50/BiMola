@@ -2,6 +2,8 @@ import {bulletStop, boxEntry, arenaVertices, clampArena} from './arena.js';
 import {getMap, mapArena} from './maps.js';
 import {abilityCover,TEAMS,teamColor} from './rules.js';
 import * as THREE from '/vendor/three.module.js';
+import {characterFor} from '../../platform/characters.js';
+import {buildAccessory} from '../../platform/accessory3d.js';
 
 // The game uses x/y on the server and x/z on the arena floor.
 export function createScene3D(canvas) {
@@ -188,11 +190,18 @@ export function createScene3D(canvas) {
 
   const raycaster=new THREE.Raycaster(),ground=new THREE.Plane(new THREE.Vector3(0,1,0),0),hitPoint=new THREE.Vector3();
   const up=new THREE.Vector3(0,1,0),direction=new THREE.Vector3();
+  // BiMola character colours, cached in `materials` so dispose() releases them.
+  const characterMaterial=hex=>materials['character:'+hex]||=new THREE.MeshStandardMaterial({color:hex,roughness:.45,metalness:.25});
+  const avatarKey=player=>`${player.character}:${player.team??''}`;
   function avatar(player,self){
     const group=new THREE.Group(),actor=new THREE.Group();group.add(actor);scene.add(group);const shield=mesh(shieldGeometry,shieldMaterial,group,0,30,0);shield.visible=false;
-    const color=Number.isInteger(player.team)&&!!teamMaterials[player.team]?teamMaterials[player.team]:self?materials.me:materials.rival;
+    // The team colour stays dominant in team mode; the character then shows on the helmet and accessory.
+    const look=characterFor(player.character),team=Number.isInteger(player.team)&&teamMaterials[player.team];
+    const color=team||characterMaterial(look.body),helmet=team?characterMaterial(look.body):characterMaterial(look.shade);
     mesh(bodyGeometry,color,actor,0,25,0);mesh(headGeometry,materials.dark,actor,0,46,0);
-    mesh(helmetGeometry,color,actor,0,47,0);mesh(shoulderGeometry,color,actor,-13,32,0);mesh(shoulderGeometry,color,actor,13,32,0);
+    mesh(helmetGeometry,helmet,actor,0,47,0);
+    const accessory=buildAccessory(THREE,player.character,{forward:1,material:characterMaterial});
+    if(accessory){accessory.position.set(0,47,0);accessory.scale.setScalar(11.5);actor.add(accessory);}mesh(shoulderGeometry,color,actor,-13,32,0);mesh(shoulderGeometry,color,actor,13,32,0);
     mesh(vestGeometry,materials.dark,actor,0,26,9);
     mesh(packGeometry,materials.trim,actor,0,27,-11);
     mesh(badgeGeometry,materials.neon,actor,-4,32,12);
@@ -206,8 +215,9 @@ export function createScene3D(canvas) {
     const context=labelCanvas.getContext('2d');context.fillStyle='#102024dd';context.fillRect(0,0,256,64);context.fillStyle=TEAMS[player.team]?teamColor(player.team):self?'#c7f579':'#dfebe4';context.font='bold 25px system-ui';context.textAlign='center';context.textBaseline='middle';context.fillText(player.name,128,32,242);
     const texture=new THREE.CanvasTexture(labelCanvas);textures.add(texture);
     const label=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthWrite:false}));label.position.set(0,75,0);label.scale.set(75,19,1);group.add(label);
-    return {group,actor,shield,label,ring,legs,previous:null};
+    return {group,actor,shield,label,ring,legs,accessory,key:avatarKey(player),previous:null};
   }
+  function dropAvatar(a){scene.remove(a.group);a.label.material.map.dispose();textures.delete(a.label.material.map);a.label.material.dispose();a.accessory?.traverse(node=>node.geometry?.dispose());}
   function resize(){
     if(disposed)return;const rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;
     renderer.setSize(rect.width,rect.height,false);camera.aspect=rect.width/rect.height;camera.updateProjectionMatrix();
@@ -253,7 +263,7 @@ export function createScene3D(canvas) {
     const visible=new Set();
     for(const p of state?.players||[]){
       if(!Number.isFinite(p.x)||state.phase==='lobby'||(planning&&(!p.alive||(p.id!==state.me&&(state.rules.mode!=='teams'||!me?.alive||p.team!==me.team)))))continue;
-      visible.add(p.id);let a=avatars.get(p.id);if(!a){a=avatar(p,p.id===state.me);avatars.set(p.id,a);}
+      visible.add(p.id);let a=avatars.get(p.id);if(a&&a.key!==avatarKey(p)){dropAvatar(a);a=null;}if(!a){a=avatar(p,p.id===state.me);avatars.set(p.id,a);}
       const point=planning&&p.id===state.me?draft||p:p;
       const moving = a.previous && Math.hypot(point.x-a.previous.x,point.y-a.previous.y)>.01;
       const stride = moving && p.alive ? Math.sin(performance.now()*.012)*.32 : 0;
@@ -266,7 +276,7 @@ export function createScene3D(canvas) {
       a.label.position.y=p.alive?75:40;
       a.label.visible = !(p.id === state.me && options.follow);
     }
-    for(const [id,a] of avatars)if(!visible.has(id)){scene.remove(a.group);a.label.material.map.dispose();textures.delete(a.label.material.map);a.label.material.dispose();avatars.delete(id);}
+    for(const [id,a] of avatars)if(!visible.has(id)){dropAvatar(a);avatars.delete(id);}
     const canAim=planning&&me?.alive&&draft;
     abilityPreview.visible=!!(planning&&draft?.ability==='cover'&&me?.alive);
     if(abilityPreview.visible){const cover=abilityCover(draft,state.arena);abilityPreview.position.set(cover.x,37.5,cover.y);}

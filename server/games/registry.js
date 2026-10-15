@@ -6,7 +6,7 @@ export const games = [{
     category: 'Saklambaç', minPlayers: 2, maxPlayers: 24, duration: '3 dk',
     bots: true, input: 'Klavye + fare', status: 'available',
     entry: '/games/prop-hunt/', cover: '/games/prop-hunt/maps/references/loft.jpeg',
-    namespace: '/games/prop-hunt', protocolVersion: 1,
+    namespace: '/games/prop-hunt', protocolVersion: 1, characters: true,
   },
   load: () => import('./prop-hunt/adapter.js').then(module => module.adapter),
 }, {
@@ -16,7 +16,7 @@ export const games = [{
     category: 'Bilgi yarışması', minPlayers: 1, maxPlayers: 12, duration: 'Sonsuz akış',
     bots: false, input: 'Klavye, fare veya dokunmatik', status: 'available',
     entry: '/games/ates-koprusu/', cover: '/games/ates-koprusu/cover.svg',
-    namespace: '/games/ates-koprusu', protocolVersion: 1,
+    namespace: '/games/ates-koprusu', protocolVersion: 1, characters: true,
   },
   load: () => import('./ates-koprusu/adapter.js').then(module => module.adapter),
 }, {
@@ -46,7 +46,17 @@ export const games = [{
     category: 'Strateji / Parti', minPlayers: 1, maxPlayers: 8, duration: '2–3 dk',
     bots: true, input: 'Fare, klavye veya dokunmatik', status: 'available',
     entry: '/games/blind-shot/', cover: '/games/blind-shot/cover.svg',
-    namespace: '/games/blind-shot', protocolVersion: 1,
+    namespace: '/games/blind-shot', protocolVersion: 1, characters: true,
   },
   load: () => import('./blind-shot/adapter.js').then(module => module.adapter),
+}, {
+  manifest: {
+    id: 'buz-kulesi', name: 'Buz Kulesi', tagline: 'Zıpla. Kombola. Düşme.',
+    description: 'Duvardan duvara koşup hız kazan, katları atlayarak kombo yap. Ekran hızlanırken son ayakta kalan kazanır; kombolarla lideri sabote et.',
+    category: 'Platform / Yarış', minPlayers: 1, maxPlayers: 12, duration: '2–5 dk',
+    bots: false, input: 'Klavye', status: 'available',
+    entry: '/games/buz-kulesi/', cover: '/games/buz-kulesi/cover.svg',
+    namespace: '/games/buz-kulesi', protocolVersion: 1, characters: true, rankBy: 'best',
+  },
+  load: () => import('./buz-kulesi/adapter.js').then(module => module.adapter),
 }];

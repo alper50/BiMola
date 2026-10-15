@@ -1,19 +1,19 @@
 # BiMola
 
-Arkadaşlarınla tarayıcıda buluşup çok oyunculu oyunlar oynayabileceğin bir oyun lobisi. Oyunlar: **Nesne Avı** (3D saklanma oyunu, sekiz harita ve botlar), **Ateş Köprüsü** (köprüde koşulan çok oyunculu bilgi yarışması), **Çengel Kapışması** (özel harf tepsileriyle ortak bulmaca tahtası), **Yılan Meydanı** (çok oyunculu 3B yılan arenası) ve **Kör Atış** (gizli hamlelerle geniş arenada eşzamanlı atış).
+Arkadaşlarınla tarayıcıda buluşup çok oyunculu oyunlar oynayabileceğin bir oyun lobisi. Oyunlar: **Nesne Avı** (3D saklanma oyunu, sekiz harita ve botlar), **Ateş Köprüsü** (köprüde koşulan çok oyunculu bilgi yarışması), **Çengel Kapışması** (özel harf tepsileriyle ortak bulmaca tahtası), **Yılan Meydanı** (çok oyunculu 3B yılan arenası), **Kör Atış** (gizli hamlelerle geniş arenada eşzamanlı atış) ve **Buz Kulesi** (Icy Tower esintili çok oyunculu kule tırmanışı).
 
 ```sh
 npm ci
 npm start
 ```
 
-[Lobi](http://localhost:3000) · [Nesne Avı](http://localhost:3000/games/prop-hunt/) · [Ateş Köprüsü](http://localhost:3000/games/ates-koprusu/) · [Çengel Kapışması](http://localhost:3000/games/cengel-kapismasi/) · [Yılan Meydanı](http://localhost:3000/games/snake/) · [Kör Atış](http://localhost:3000/games/blind-shot/)
+[Lobi](http://localhost:3000) · [Nesne Avı](http://localhost:3000/games/prop-hunt/) · [Ateş Köprüsü](http://localhost:3000/games/ates-koprusu/) · [Çengel Kapışması](http://localhost:3000/games/cengel-kapismasi/) · [Yılan Meydanı](http://localhost:3000/games/snake/) · [Kör Atış](http://localhost:3000/games/blind-shot/) · [Buz Kulesi](http://localhost:3000/games/buz-kulesi/)
 
 Node.js 24 (Docker ile aynı sürüm) önerilir. Geliştirme: `npm run dev`. Doğrulama: `npm test`. Ek derleme adımı yok; ES modülleri kullanılır.
 
 ## Yapı
 
-- `public/platform/`: oyun kataloğu, oda listesi, oda koduyla katılma, ortak oyuncu adı.
+- `public/platform/`: oyun kataloğu, oda listesi, oda koduyla katılma, ortak oyuncu adı ve ortak **BiMola karakteri** (lobide bir kez seçilir; Nesne Avı, Ateş Köprüsü, Kör Atış ve Buz Kulesi kendi modellerinde çizer). [Karakter sözleşmesi](docs/ARCHITECTURE.md#bimola-karakteri).
 - `server/platform/`: oyun bağımsız oda yaşam döngüsü, bağlantı yönlendirme, yayın ve simülasyon zamanlayıcısı.
 - `server/games/registry.js`: oyunların tanımları ve gerektiğinde yüklenen sunucu modülleri.
 - `server/games/prop-hunt/`: Nesne Avı sunucu kuralları ve platform adaptörü.
@@ -23,6 +23,7 @@ Node.js 24 (Docker ile aynı sürüm) önerilir. Geliştirme: `npm run dev`. Do�
 - `server/games/cengel-kapismasi/` + `public/games/cengel-kapismasi/`: ortak çengel tahtası, özel beş harflik eller, TAC havuzundan hazırlanmış rastgele tahtalar ve 2D arayüz.
 
 - `server/games/blind-shot/` + `public/games/blind-shot/`: 1–8 kişilik, bot destekli Kör Atış; beş siperli harita (dörtgen / altıgen / sekizgen), gizli konum/nişan seçimi, eşzamanlı isabet, daralan alan, sesler, raund puanları ve ağır çekim tekrar. [Kurallar ve mimari](docs/KOR-ATIS.md).
+- `server/games/buz-kulesi/` + `public/games/buz-kulesi/`: 1–12 kişilik Buz Kulesi; ortak tohumlu kule, tarayıcıda kendi fiziği + sunucuda kamera/eleme/kombo denetimi, hayalet rakipler, lidere sabotaj ve en iyi maça göre rekor tablosu. [Kurallar ve mimari](docs/BUZ-KULESI.md).
 
 **Yeni oyun eklemek, lobiyi veya diğer oyunları değiştirmeyi gerektirmez.** Kendi istemci klasörünü ve sunucu adaptörünü ekleyip kataloğa kaydet. Çalışan iki farklı oyunla izolasyonu gösteren örnek test `test/platform.test.js` içindedir; test oyunu kullanıcı kataloğuna eklenmez.
 
@@ -51,7 +52,7 @@ Docker ile başka bir servise yayımlarken kaynak dalı `main`, build context de
 
 Sağlık: `/health`. Katalog: `/api/games`. Katılınabilir odalar: `/api/rooms?gameId=prop-hunt`. Kod çözümleme: `/api/rooms/1234`. Eski `/?room=1234` davetleri de doğru oyuna yönlendirilir. Antrenman ve dolu odalar listelenmez.
 
-Oda durumu bellekte ve tek sunucu sürecindedir; yeniden başlatmada kaybolur. **Ateş Köprüsü ve Çengel Kapışması puanları ise kalıcıdır:** toplam puan, maç rekoru, en uzun seri ve tamamlanan maçlar sunucudaki `data/` klasöründe saklanır. `BIMOLA_DATA_DIR` başka bir kayıt dizini seçer. Docker Compose bu klasörü `bimola-scores` adlı kalıcı volume'a bağlar. Başka bir yayın servisinde `/app/data` yoluna kalıcı disk bağlamak gerekir; yalnızca Docker imajını korumak puanları korumaz. Kayıt klasörü yedeklenmelidir; aynı deftere tek sunucu süreci yazmalıdır.
+Oda durumu bellekte ve tek sunucu sürecindedir; yeniden başlatmada kaybolur. **Ateş Köprüsü, Çengel Kapışması ve Buz Kulesi puanları ise kalıcıdır:** toplam puan, maç rekoru, en uzun seri ve tamamlanan maçlar sunucudaki `data/` klasöründe saklanır. `BIMOLA_DATA_DIR` başka bir kayıt dizini seçer. Docker Compose bu klasörü `bimola-scores` adlı kalıcı volume'a bağlar. Başka bir yayın servisinde `/app/data` yoluna kalıcı disk bağlamak gerekir; yalnızca Docker imajını korumak puanları korumaz. Kayıt klasörü yedeklenmelidir; aynı deftere tek sunucu süreci yazmalıdır.
 
 Oyuncu kimliği tarayıcıdaki HttpOnly çerezle tanınır; adı değiştirmek puanını sıfırlamaz. Çerezi silmek veya başka cihaz kullanmak yeni oyuncu oluşturur. Hesapla cihazlar arası taşıma, oda geri yükleme ve otomatik oturum kurtarma henüz yoktur. İnternet yayını HTTPS ve WebSocket destekli ters vekil gerektirir. Docker sunucusunda ekran kartı gerekmez; oyun görüntüsü oyuncunun tarayıcısında çizilir.
 

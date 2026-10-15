@@ -1,6 +1,7 @@
 import {randomInt, randomBytes, randomUUID} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {validateSet, summarizeSet, LIMITS} from '../../../public/games/ates-koprusu/questions.js';
+import {DEFAULT_CHARACTER, validCharacter} from '../../../public/platform/characters.js';
 
 // Sunucu otoritelidir: sıra, süre, doğru cevap, jokerler ve puan yalnızca burada belirlenir.
 // Akış: lobby (hazır kontrolü) → countdown → question → reveal → pause → … → podyum (lobby).
@@ -35,8 +36,8 @@ function announce(room, text, kind = 'info') {
 }
 const inGame = room => !['lobby', 'countdown'].includes(room.phase);
 
-export function addPlayer(room, {id, name, profileId}, now = Date.now()) {
-  const p = room.players[id] = {id, name, profileId, ready: false, joinedAt: now, ...freshStats()};
+export function addPlayer(room, {id, name, profileId, character}, now = Date.now()) {
+  const p = room.players[id] = {id, name, profileId, character: validCharacter(character) ? character : DEFAULT_CHARACTER, ready: false, joinedAt: now, ...freshStats()};
   const current = room.current;
   if (inGame(room) && current) {
     current.orders[id] = shuffle(current.tokens);
@@ -45,6 +46,13 @@ export function addPlayer(room, {id, name, profileId}, now = Date.now()) {
   }
   if (room.phase === 'countdown') p.ready = true; // Geri sayım başladıysa oyuna dahil olur.
   return p;
+}
+// Only the look changes, so the character can change at any time.
+export function setCharacter(room, id, character) {
+  const p = room.players[id];
+  if (!p) return {error: 'Oyuncu bulunamadı.'};
+  p.character = character;
+  return {ok: true};
 }
 export function removePlayer(room, id, now = Date.now()) {
   delete room.players[id]; delete room.uploads[id];
@@ -260,7 +268,7 @@ export function removeSet(room, id, data) {
 export function view(room, id, now) {
   const current = room.current, open = room.phase === 'question';
   const players = Object.values(room.players).sort((a, b) => b.score - a.score || b.position - a.position || a.joinedAt - b.joinedAt).map(p => ({
-    id: p.id, name: p.name, ready: p.ready, score: p.score, streak: p.streak, bestStreak: p.bestStreak, position: p.position, correct: p.correct, answered: p.answered, recent: p.recent, jokers: p.jokers,
+    id: p.id, name: p.name, character: p.character, ready: p.ready, score: p.score, streak: p.streak, bestStreak: p.bestStreak, position: p.position, correct: p.correct, answered: p.answered, recent: p.recent, jokers: p.jokers,
     hasAnswered: open && current ? !!current.choices[p.id] : false, waiting: current ? p.skipRound === current.round : false,
     frozen: open && current?.frozen[p.id] > now ? current.frozen[p.id] : 0,
     protected: open && !!current?.effects[p.id]?.shield,

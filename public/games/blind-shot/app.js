@@ -1,4 +1,7 @@
-import {readName, saveName} from '/platform/profile.js';
+import {readName, saveName, readCharacter} from '/platform/profile.js';
+import {characterFor} from '/platform/characters.js';
+import {portrait} from '/platform/portrait.js';
+import {pickCharacter} from '/platform/character-picker.js';
 import {createScene3D} from './scene3d.js';
 import {walkDraft} from './controls.js';
 import {standings} from './scoring.js';
@@ -23,7 +26,11 @@ const keys = new Set();
 const fullscreen = createFullscreen($('game-view'), $('fullscreen'), {beforeChange: releaseMouse, onChange: () => arenaScene?.resize()});
 let dragging = false, lastPointer = null, lastFrame = 0, pointerFallback = false;
 let state, draft, mode = 'walk', offset = 0, frame = 0, noticeTimer, joining = false, pending = false, lastChoiceAt = 0;
-$('name').value = readName(); $('code').value = new URLSearchParams(location.search).get('room') || '';
+$('name').value = readName();
+// The BiMola character comes from the lobby; this is a shortcut to the shared picker.
+function showCharacter(){const c=characterFor(readCharacter());$('character-portrait').replaceChildren(portrait(c.id,34,40));$('character-name').textContent=c.name;}
+$('character-change').addEventListener('click',async()=>{const id=await pickCharacter();if(!id)return;showCharacter();if(state)command('character',id);});
+showCharacter(); $('code').value = new URLSearchParams(location.search).get('room') || '';
 const mine = () => state?.players.find(p => p.id === state.me);
 const editable = () => state?.phase === 'plan' && mine()?.alive && !mine().locked && !pending && Date.now() + offset < state.until;
 function notice(message) { $('notice').textContent = message; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { $('notice').textContent = ''; }, 5000); }
@@ -41,7 +48,7 @@ $('join-form').addEventListener('submit', async event => {
   }
   joining = true; $('join-button').disabled = true;
   const join = async () => {
-    const result = await command('join', {name: saveName($('name').value), code: $('code').value.trim() || undefined,...(!$('join-team-field').hidden&&joinSelectedTeam!==null?{team:joinSelectedTeam}:{})});
+    const result = await command('join', {name: saveName($('name').value), character: readCharacter(), code: $('code').value.trim() || undefined,...(!$('join-team-field').hidden&&joinSelectedTeam!==null?{team:joinSelectedTeam}:{})});
     if (result && !result.error) { $('home').hidden = true; $('room').hidden = false; history.replaceState(null, '', `?room=${result.code}`); }
     joining = false; $('join-button').disabled = false;
   };

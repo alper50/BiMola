@@ -26,7 +26,7 @@ export function createGameServer({games = defaultGames, maxRooms = Number(proces
   app.get('/api/games/:gameId/scores', async (req, res) => {
     if (!registry.get(req.params.gameId)) return res.status(404).json({error: 'Oyun bulunamadı.'});
     try { await scores.flush(); } catch { return res.status(503).json({error: 'Puan defteri şu an kaydedilemiyor.'}); }
-    res.json(scores.leaderboard(req.params.gameId, scores.resolve(playerToken(req.headers.cookie))));
+    res.json(scores.leaderboard(req.params.gameId, scores.resolve(playerToken(req.headers.cookie)), registry.get(req.params.gameId).rankBy));
   });
   app.get('/api/rooms', (req, res) => {
     const gameId = req.query.gameId;

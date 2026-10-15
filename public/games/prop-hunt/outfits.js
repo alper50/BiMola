@@ -1,19 +1,12 @@
-// Avcı karakterleri. Tek katalog hem katılma ekranını, hem sunucunun doğrulamasını, hem de model
-// kurucusunu besler — maps.js'in harita seçimini beslediği gibi: istemci sunucunun tanımadığı bir
-// görünüm adı gönderemez.
+// Nesne Avı'nın dört kıyafetli karakteri (Levi, Marco, Yusuf, Tenzin) artık ortak BiMola
+// kataloğunda; burada yalnız bu oyunun insan figürüne giydirdiği tam kıyafetler durur. Diğer
+// karakterler gömlek/pantolon rengi ve başa oturan aksesuarla çizilir (scene.js).
 //
-// Dört karakter aynı baş, yüz ve beden geometrisini kullanır; avatar() bunları her seferinde aynı
+// Dört kıyafet aynı baş, yüz ve beden geometrisini kullanır; avatar() bunları her seferinde aynı
 // şekilde çizer. Buradaki kod yalnızca kıyafet ve başlık ekler, yani ayrım giyimden gelir, yüz ya
-// da beden hatlarından gelmez. Etiketler de kişi adı ve kıyafet tarifidir, grup adı değildir.
-export const SKINS=[
- {id:'levi',name:'Levi',note:'Geniş şapka, uzun ceket'},
- {id:'marco',name:'Marco',note:'Beyaz yaka, haç kolye'},
- {id:'yusuf',name:'Yusuf',note:'Takke, krem cübbe'},
- {id:'tenzin',name:'Tenzin',note:'Safran cübbe, tıraşlı baş'},
-];
-export const DEFAULT_SKIN=SKINS[0].id;
-export const validSkin=id=>SKINS.some(s=>s.id===id);
-export const skinFor=id=>validSkin(id)?id:DEFAULT_SKIN;
+// da beden hatlarından gelmez.
+export const OUTFITS=Object.freeze(['levi','marco','yusuf','tenzin']);
+export const hasOutfit=id=>OUTFITS.includes(id);
 
 // Kıyafet katmanı. map-models.js ile aynı bağlam nesnesini alır, böylece geometri tarayıcı veya
 // WebGL olmadan da kurulup sınanabilir. Dönen değer avatar()'ın gövde ve pantolon için kullandığı

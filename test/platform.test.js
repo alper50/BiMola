@@ -66,7 +66,8 @@ test('catalog and lobby do not load an engine; shell stays below 40 KiB uncompre
   const g = await setup(t);
   const catalog = await (await fetch(g.url + '/api/games')).json();
   assert.equal(catalog[0].id, 'prop-hunt'); assert.equal(g.registry.adapter('prop-hunt'), undefined);
-  const paths = ['public/index.html', 'public/platform/lobby.js', 'public/platform/lobby.css', 'public/platform/profile.js'];
+  // Everything the lobby loads up front; the character picker is fetched only when opened.
+  const paths = ['public/index.html', 'public/platform/lobby.js', 'public/platform/lobby.css', 'public/platform/profile.js', 'public/platform/characters.js', 'public/platform/portrait.js'];
   let size = 0;
   for (const path of paths) {
     size += (await stat(path)).size;

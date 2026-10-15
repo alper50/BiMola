@@ -1,4 +1,4 @@
-import {createRoom, addPlayer, removePlayer, setReady, answer, useJoker, tick, upload, removeSet, view, MAX_PLAYERS} from './game.js';
+import {createRoom, addPlayer, removePlayer, setCharacter, setReady, answer, useJoker, tick, upload, removeSet, view, MAX_PLAYERS} from './game.js';
 
 const members = room => Object.values(room.players);
 export const adapter = {
@@ -13,6 +13,7 @@ export const adapter = {
   takeScores: room => room.scoreEvents.splice(0),
   addPlayer(room, player) { const p = addPlayer(room, player); return {waiting: !!p.skipRound}; },
   removePlayer: (room, id) => removePlayer(room, id),
+  setCharacter: (room, id, character) => setCharacter(room, id, character),
   summary(room) {
     const players = members(room).length, waiting = ['lobby', 'countdown'].includes(room.phase);
     return {phase: waiting ? 'lobby' : 'play', players, capacity: MAX_PLAYERS, round: room.current?.number || 0, total: room.current?.total || 0, joinable: players < MAX_PLAYERS};

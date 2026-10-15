@@ -72,8 +72,10 @@ export function createScores({directory = null, logger = console} = {}) {
     },
     record(gameId, events) { for (const event of events) if (profiles.has(event.profileId)) save({...event, gameId, kind: 'score'}); },
     profile(id) { return {name: profiles.get(id)?.name || 'Misafir', games: Object.fromEntries(Object.keys(profiles.get(id)?.games || {}).map(gameId => [gameId, publicStats(id, gameId)])), durable: !!directory, healthy: !error}; },
-    leaderboard(gameId, mine) {
-      const rows = [...profiles].filter(([, p]) => p.games[gameId]?.answered).map(([id, p]) => ({name: p.name, ...publicStats(id, gameId), mine: id === mine, key: id})).sort((a, b) => b.total - a.total || b.best - a.best || a.key.localeCompare(b.key));
+    // rankBy 'best' ranks by the best single match instead of the running total.
+    leaderboard(gameId, mine, rankBy = 'total') {
+      const [first, second] = rankBy === 'best' ? ['best', 'total'] : ['total', 'best'];
+      const rows = [...profiles].filter(([, p]) => p.games[gameId]?.answered).map(([id, p]) => ({name: p.name, ...publicStats(id, gameId), mine: id === mine, key: id})).sort((a, b) => b[first] - a[first] || b[second] - a[second] || a.key.localeCompare(b.key));
       return {rows: rows.slice(0, 20).map(({key, ...row}, i) => ({...row, rank: i + 1})), rank: rows.findIndex(p => p.mine) + 1 || null, me: publicStats(mine, gameId), durable: !!directory, healthy: !error};
     },
     async flush() { await queue; if (error) throw error; },

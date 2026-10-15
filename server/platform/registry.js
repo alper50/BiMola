@@ -1,5 +1,5 @@
 const methods = ['create', 'canJoin', 'addPlayer', 'removePlayer', 'members', 'summary', 'view', 'tick', 'tickInterval'];
-const reserved = new Set(['join', 'leave', 'disconnect', 'connect', 'error', 'state']);
+const reserved = new Set(['join', 'leave', 'disconnect', 'connect', 'error', 'state', 'character']);
 
 export function createRegistry(definitions) {
   const entries = new Map();
@@ -19,6 +19,7 @@ export function createRegistry(definitions) {
       // First connections share one load; a failed load can be retried.
       entry.pending ??= Promise.resolve().then(entry.load).then(adapter => {
         for (const name of methods) if (typeof adapter?.[name] !== 'function') throw new Error(`Missing adapter method: ${id}.${name}`);
+        if (adapter.setCharacter !== undefined && typeof adapter.setCharacter !== 'function') throw new Error(`Invalid setCharacter: ${id}`);
         if (!Number.isFinite(adapter.snapshotInterval) || adapter.snapshotInterval < 25) throw new Error(`Invalid snapshot interval: ${id}`);
         for (const [name, command] of Object.entries(adapter.commands || {})) {
           if (reserved.has(name) || typeof command.handle !== 'function' || !Number.isFinite(command.interval) || command.interval < 0) throw new Error(`Invalid game command: ${id}.${name}`);

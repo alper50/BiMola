@@ -65,7 +65,8 @@ Metotlar **senkron** olmalıdır; `load` dışında Promise dönmez. Adaptörler
 |---|---|
 | `create({code, host, data})` | Henüz üyesi olmayan oyun oda durumunu oluşturur. Platform `code` ve `gameId` alanlarını sabitler. |
 | `canJoin(room, data)` | Kapasite, özel/antrenman oda veya faz kuralını kontrol eder; `{ok:true}` ya da `{error}` döndürür. |
-| `addPlayer(room, {id, name, data})` | Doğrulanmış oyuncuyu ekler; takım veya sırayı oyun seçer. İsteğe bağlı katılma yanıtı döndürür. |
+| `addPlayer(room, {id, name, character, data})` | Doğrulanmış oyuncuyu ekler; takım veya sırayı oyun seçer. `character` platformun doğruladığı BiMola karakter kimliğidir (geçersizse varsayılan). İsteğe bağlı katılma yanıtı döndürür. |
+| `setCharacter(room, id, character)` | İsteğe bağlı. Oyuncu odadayken karakterini değiştirmek istediğinde çağrılır; kimlik doğrulanmıştır, oyun yalnız ne zaman izin verileceğine karar verir. `{ok:true}` veya `{error}`. Yoksa platform "Bu oyunda karakter yok" der. |
 | `removePlayer(room, id)` | Oyuncuyu, sahip olduğu oyun nesnelerini ve gerekirse oda sahibi yetkisini devreder/temizler. |
 | `members(room)` | İnsan bağlantıları: en az `{id}` içeren dizi; botlar dahil edilmez. |
 | `summary(room)` | Gizli veri içermeyen `{players, capacity, phase, joinable, ...}` oda özeti. `joinable:false` odaları platform listelemez. |
@@ -77,7 +78,7 @@ Metotlar **senkron** olmalıdır; `load` dışında Promise dönmez. Adaptörler
 
 `command.handle(room, playerId, payload, now)` girdiyi doğrular ve `{ok:true}` veya `{error}` döndürür. `interval` aynı soketten komut kabulü arasındaki minimum ms'dir. `publish:true`, başarılı komuttan sonra güvenilir durum yayını ve zamanlayıcı değerlendirmesi yapar; faz/takvim değiştiren komutlarda kullanılmalıdır. Sıra tabanlı oyunda `tickInterval: () => 0` ve `publish:true` komutlar yeterlidir. `event` yalnız komutu gönderen kişiye ek sonuç olayı yollar. Özel olaylarda ack son argümandır; hem `emit('start', ack)` hem `emit('action', payload, ack)` desteklenir.
 
-Ortak `join`, `leave`, `state` ve Socket.IO bağlantı olayları adaptör tarafından yeniden tanımlanamaz. Fazlar adaptöre aittir; lobi bilmediği fazı metin olarak gösterebilir. Komut hata ve izin kontrolleri oyunun sorumluluğundadır; saklanma adaptörü mevcut kurucu/takım/oylama kurallarını kullanır.
+Ortak `join`, `leave`, `state`, `character` ve Socket.IO bağlantı olayları adaptör tarafından yeniden tanımlanamaz. Fazlar adaptöre aittir; lobi bilmediği fazı metin olarak gösterebilir. Komut hata ve izin kontrolleri oyunun sorumluluğundadır; saklanma adaptörü mevcut kurucu/takım/oylama kurallarını kullanır.
 
 ### Bağlantı ve odalar
 
@@ -93,11 +94,27 @@ Kodlar platformda tek havuzdan üretilir, oyunlar arasında çakışmaz. Oda oyu
 
 `/api/rooms/:code`, katılınabilir oda için oyunun doğru giriş adresini verir. Eski `/?room=1234` linkleri bunu kullanır; yeni saklanma davetleri doğrudan `/games/prop-hunt/?room=1234` adresini taşır. Odanın kontrol ile katılma arasında dolması mümkündür; son kararı her zaman `canJoin` verir.
 
+## BiMola karakteri
+
+Oyuncu bir **BiMola karakteri** seçer ve bu karakter, karakter çizen her oyunda onunla gelir. Katalogda 12 karakter vardır. Her biri bir renk paleti (`body`, `shade`, `accent`; isteğe bağlı `trim` süs rengi ve `beard` sakal rengi) ve bir aksesuardan oluşur: bere, atkı, kask, kulaklık, taç, gözlük, kasket, fiyonk, geniş kenarlı şapka, yaka ve haç, takke, cübbe kuşağı. Son dördü Nesne Avı'nın eski karakterleri Levi, Marco, Yusuf ve Tenzin'dir; Nesne Avı onları tam kıyafetleriyle (`public/games/prop-hunt/outfits.js`) çizer, diğer oyunlar bu aksesuarlarla. Model oyuna aittir: Buz Kulesi 2D figür, Ateş Köprüsü kapsül, Kör Atış asker, Nesne Avı insan figürü çizer. Platformdan yalnız renkleri ve aksesuarı alırlar.
+
+| Dosya | Görev |
+|---|---|
+| `public/platform/characters.js` | Katalog (yalnız veri). Lobi, oyun sayfaları ve sunucu aynı dosyayı kullanır. |
+| `public/platform/profile.js` | `readCharacter` / `saveCharacter`: seçim, oyuncu adı gibi tarayıcıda (`bimola-character`) saklanır. |
+| `public/platform/portrait.js` | 2D figür ve küçük portre. Lobi başlığı, seçici ve 2D oyunlar kullanır. |
+| `public/platform/character-picker.js` | Ortak seçici diyaloğu. Lobi ilk tıklamada tembel yükler; oyunlar "Değiştir" kısayoluyla aynı diyaloğu açar. |
+| `public/platform/accessory3d.js` | 3D aksesuar kurucusu. Baş yarıçapı biriminde çalışır; THREE ve malzeme fabrikası oyundan gelir, böylece motor sürümü, malzeme önbelleği ve temizlik oyunda kalır. |
+
+Tarayıcı karakteri `join` verisinde gönderir. Platform kimliği doğrular ve `addPlayer`'a `character` olarak verir; oyun tarayıcıdan gelen ham değere bakmaz. Odadayken değişiklik ortak `character` olayıyla gelir (300 ms sınırı); platform doğrular, oyunun `setCharacter` metodunu çağırır ve başarılıysa durumu yayınlar. Karakter kozmetiktir; gizli bilgi taşımaz ve puanı etkilemez.
+
+Bugün karakteri kullanan oyunlar manifestte `characters: true` taşır; lobi kartında "Karakterinle" yazar. Yılan Meydanı ve Çengel Kapışması karakter kullanmaz; renkleri kendi kurallarıyla atanır. Yeni bir oyun karakter istemiyorsa hiçbir şey yapmasına gerek yoktur.
+
 ## Kaynak ve ağ bütçeleri
 
 | Katman | Uygulanan davranış |
 |---|---|
-| Lobi kaynakları | HTML + CSS + JS ≤ 40 KiB sıkıştırılmamış; testte ölçülür. Görseller bu bütçenin dışında, tembel yüklenir. Harici font yok. |
+| Lobi kaynakları | HTML + CSS + JS ≤ 40 KiB sıkıştırılmamış; testte ölçülür. Karakter katalogu ve portre çizimi dahildir; seçici yalnız açılınca yüklenir. Görseller bu bütçenin dışında, tembel yüklenir. Harici font yok. |
 | Lobi ağ trafiği | Katalog başlangıçta bir kez; odalar görünürken 15 saniyede bir, üst üste istek yok. Gizlenirken istek iptal edilir. |
 | Boş oyun lobisi | Sıfır simülasyon, sıfır periyodik durum yayını; katılma/ayrılma/ayar gibi değişimler yayınlanır. |
 | Nesne Avı turu | 25 ms simülasyon / 50 ms düzenli durum yayını. Mevcut kişiye özel gizlilik filtreleri korunur. |

@@ -109,9 +109,20 @@ nav a:hover {
   padding:9px 13px;
   border-radius:30px;
 }
-.profile>span:first-child {
-  font-size:25px;
-  color:var(--blue);
+.character-button {
+  display:grid;
+  place-items:center;
+  width:40px;
+  height:40px;
+  margin:-5px 0;
+  padding:0;
+  border:2px solid var(--white);
+  border-radius:50%;
+  background:var(--white);
+  overflow:hidden;
+}
+.character-button:hover,.character-button:focus-visible {
+  border-color:var(--blue);
 }
 .profile input {
   border:0;

@@ -47,13 +47,11 @@ npm start
 
 Her haritanın mimarisi, nesne havuzu ve bot yolları ayrıdır. Eşya değişimi, kopyalar, isabet ve yoğunluk ayarları ortak çalışır. Yeni haritalarda 20 yeni eşya türü bulunur; büyük nesnelerin üzerindeki küçük eşyalar bağımsız seçilir. Müzedeki yükseltme sınırı bulunulan katın zemininden ölçülür. Gönderilen görsellerden palet, malzeme ve yerleşim fikri alınmıştır; sahneler gerçek zamanlı geometriyle yeniden kurulmuştur, fotoğrafların birebir 3D kopyası değildir.
 
-## Avcı karakteri
+## Karakter
 
-Katılma ekranında, taraf seçiminin altında dört hazır karakter vardır: **Levi** (geniş şapka, uzun ceket), **Marco** (beyaz yaka, pirinç haç kolye), **Yusuf** (takke, krem cübbe) ve **Tenzin** (safran cübbe, tıraşlı baş). Seçim oturum başına bir kezdir, tarayıcıda oyundaki adın yanında saklanır ve bir sonraki girişte hazır gelir. Kart üzerindeki figür ayrı bir vitrin modeli değil, sahnede kullanılan avatarın kendisidir.
+Nesne Avı ortak BiMola karakterini kullanır ([mimari](ARCHITECTURE.md#bimola-karakteri)). Bu oyunun dört karakteri **Levi** (geniş şapka, uzun ceket), **Marco** (beyaz yaka, pirinç haç kolye), **Yusuf** (takke, krem cübbe) ve **Tenzin** (safran cübbe, tıraşlı baş) ortak katalogdadır; artık yalnız avcıyken değil, insan formundaki saklananda ve öbür karakterli oyunlarda da seçilebilir. Karakter lobide seçilir; katılma diyaloğundaki "Değiştir" düğmesi aynı ortak seçiciyi açar.
 
-Karakter yalnızca **avcı olduğun turlarda** görünür; saklananlar ortak görünümde kalır ve nesneye dönüştüklerinde zaten insan olarak çizilmezler. Takımlar tur arası yer değiştirdiğinde seçim oyuncuda kalır, yeniden seçmen gerekmez. Botlar katalogda sırayla dolaşır, yani dolu bir bot avcı takımı tek karakterin kopyası olmaz.
-
-Dört karakterin baş, yüz ve beden geometrisi birebir aynıdır: ayrım yalnızca kıyafet, başlık ve renklerden gelir, yüz veya beden hatlarından gelmez. Her karakterde takım rengi (teal) bir aksesuar olarak durur — şapka bandı, gömlek düğmeleri, cübbe patı, cübbe bordürü — böylece avcı uzaktan hâlâ avcı gibi okunur. Silüetlerin tepesi de ayrışır: Levi 1,94 m (şapka), Yusuf 1,83 m (takke), Marco 1,77 m (saç), Tenzin 1,76 m (tıraşlı baş). Birinci şahıs görünümünde ekranın altındaki kolluk da seçtiğin karakterin kumaşını alır.
+İnsan figürünün baş, yüz ve beden geometrisi herkeste aynıdır. Bu dört karakter `outfits.js` içindeki tam kıyafetlerini giyer; ayrım yalnız kıyafet, başlık ve renklerden gelir, yüz hatlarından gelmez ve her kıyafette takım rengi (teal) bir aksesuar olarak durur. Diğer BiMola karakterlerinde gömlek ana rengi, pantolon gölge rengini alır ve aksesuar başa oturur; bere, kask ve kasket saçın yerini alır. Takım bir kemerle okunur: avcıda turkuaz, insan formundaki saklananda kiremit; avcı ayrıca su tabancası taşır. Takımlar tur arası yer değiştirdiğinde karakter oyuncuda kalır. Birinci şahıs görünümünde ekranın altındaki kolluk karakterin gömlek rengini alır. Botlar katalogda sırayla dolaşır; dolu bir bot takımı tek karakterin kopyası olmaz.
 
 ## Son Sevkiyat — devasa kargo limanı
 

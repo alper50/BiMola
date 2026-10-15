@@ -51,4 +51,6 @@ Takım seçimi girişte ve lobide renkli kartlara tıklanarak yapılır. Seçili
 
 İlk raund oda sahibinin seçtiği haritada başlar. Sonraki raundlar kalan haritaların rastgele karıştırılmış sırasını kullanır; 5 raundluk maçta beş harita birer kez oynanır. Harita atış veya tekrar sırasında değişmez, yeni raundda tam boyutuyla açılır. Raund geçmişi harita adını da gösterir. Yeni maç ilk harita tercihini koruyup sıralamayı yeniden karıştırır.
 
-Lobide ve maçta takım seçimi / toplam puanı aynı renkli kartta gösterilir. Maç sırasında kart seçimi kapanır; puanlar güncellenir. Karakter kıyafeti, ayak halkası, sahnedeki isim etiketi, takım kartı ve oyuncu listelerindeki renk işareti aynı `TEAMS` renk tanımını kullanır. Emoji rengine bağlı işaretler kullanılmaz.
+Lobide ve maçta takım seçimi / toplam puanı aynı renkli kartta gösterilir. Maç sırasında kart seçimi kapanır; puanlar güncellenir. Takım modunda gövde, ayak halkası, sahnedeki isim etiketi, takım kartı ve oyuncu listelerindeki renk işareti aynı `TEAMS` renk tanımını kullanır. Emoji rengine bağlı işaretler kullanılmaz.
+
+Askerler ortak BiMola karakterini taşır ([mimari](ARCHITECTURE.md#bimola-karakteri)). Tekli modda gövde karakterin ana rengini, kask gölge rengini alır. Takım modunda gövde takım renginde kalır, karakter kaskta ve aksesuarda görünür. Kendi askerin neon halka ve neon isim etiketiyle ayrılır. Botlar katalogda sırayla karakter alır.

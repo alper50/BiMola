@@ -10,13 +10,13 @@ export const adapter = {
     if (members(room).length >= room.settings.teamSize * 2) return {error: `Oda dolu (${room.settings.teamSize * 2} kişi).`};
     return {ok: true};
   },
-  addPlayer(room, {id, name, data}) {
+  addPlayer(room, {id, name, character, data}) {
     let team = data.role === 'hunter' ? 'hunter' : 'hider';
     const count = team => members(room).filter(player => player.team === team).length;
     if (room.settings.teamSelection === 'auto') team = count('hunter') < count('hider') ? 'hunter' : 'hider';
     if (count(team) >= room.settings.teamSize) team = team === 'hunter' ? 'hider' : 'hunter';
     const waiting = !['lobby', 'end'].includes(room.phase);
-    const p = room.players[id] = player(id, name, false, team, data.skin);
+    const p = room.players[id] = player(id, name, false, team, character);
     p.waiting = waiting;
     if (waiting) p.status = 'waiting'; else syncBots(room);
     if (room.practice) {
@@ -24,6 +24,12 @@ export const adapter = {
       room.phase = 'brief'; room.until = 0;
     }
     return {waiting};
+  },
+  // Only the look changes; the platform has already validated the id.
+  setCharacter(room, id, character) {
+    const p = room.players[id];
+    if (!p || p.bot) return {error: 'Oyuncu bulunamadı.'};
+    p.character = character; return {ok: true};
   },
   removePlayer(room, id) {
     const p = room.players[id];

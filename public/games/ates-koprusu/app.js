@@ -1,4 +1,7 @@
-import {readName, saveName} from '../../platform/profile.js';
+import {readName, saveName, readCharacter} from '../../platform/profile.js';
+import {characterFor} from '../../platform/characters.js';
+import {portrait} from '../../platform/portrait.js';
+import {pickCharacter} from '../../platform/character-picker.js';
 import {buildPrompt, parseSet, summarizeSet, chunkText} from './questions.js';
 import {createAudio} from './audio.js';
 
@@ -18,7 +21,7 @@ const store = {
   set: (key, value) => { try { localStorage.setItem(key, value); } catch { /* depolama kapalı olabilir */ } },
 };
 const socket = io('/games/' + GAME, {autoConnect: false}), audio = createAudio();
-let state = null, code = null, offset = 0, scene = null, colorFor = () => '#ff9f43';
+let state = null, code = null, offset = 0, scene = null;
 let builtRound = 0, lastRevealRound = 0, lastTick = -1, lastCount = -1, timer = 0, roomsTimer = 0, roomsRequest = null, closing = false, pendingSet = null, uploading = false;
 const feedSeen = new Map();
 let builtOrder = '', jokerTab = 'support', wizardStep = 1, records = null, lastPodium = '', bestBefore = 0, recordRequest = null, lastAttackRound = 0;
@@ -30,7 +33,6 @@ audio.enabled = store.get('ates-sound', '1') === '1';
 // WebGL açılmazsa oyun kartlarla oynanmaya devam eder.
 import('./scene.js').then(module => {
   if (closing) return;
-  colorFor = module.colorFor;
   scene = module.createScene($('scene'), $('labels'), {quality, reducedMotion: motion === 'reduced'});
   if (state?.players) scene.setState(state, state.me, offset);
   if (!document.hidden) scene.start();
@@ -88,10 +90,21 @@ fetch('/api/player', {cache: 'no-store'}).then(response => {
 // ---------- Giriş ekranı ----------
 $('name').value = readName() || '';
 $('name').addEventListener('change', e => { e.target.value = saveName(e.target.value); });
+// The BiMola character is chosen in the lobby; this is the shortcut to the same picker.
+function showCharacter() {
+  const character = characterFor(readCharacter());
+  $('character-portrait').replaceChildren(portrait(character.id, 34, 40)); $('character-name').textContent = character.name;
+}
+$('character-change').addEventListener('click', async () => {
+  const id = await pickCharacter(); if (!id) return;
+  showCharacter();
+  if (state) socket.emit('character', id, result => { if (result?.error) toast(result.error); });
+});
+showCharacter();
 function join(payload) {
   $('error').textContent = ''; audio.unlock();
   const name = saveName($('name').value || 'Misafir') || 'Misafir';
-  socket.timeout(6000).emit('join', {name, ...payload}, (timeout, result) => {
+  socket.timeout(6000).emit('join', {name, character: readCharacter(), ...payload}, (timeout, result) => {
     if (timeout) { $('error').textContent = 'Sunucu yanıt vermedi. Tekrar dene.'; return; }
     if (result?.error) { $('error').textContent = result.error; screen('home'); return; }
     code = result.code;
@@ -188,8 +201,8 @@ function renderLobby(previous) {
   $('copy-code').textContent = code || '';
   $('player-count').textContent = `${readyCount}/${total} hazır`;
   $('lobby-players').replaceChildren(...state.players.map(p => {
-    const row = el('div', 'player'), dot = el('span', 'dot', p.name.slice(0, 1).toLocaleUpperCase('tr')), name = el('span', '', p.name + (p.id === state.me ? ' (sen)' : ''));
-    dot.style.background = colorFor(p.id);
+    const row = el('div', 'player'), dot = el('span', 'dot'), name = el('span', '', p.name + (p.id === state.me ? ' (sen)' : ''));
+    dot.style.background = characterFor(p.character).shade; dot.append(portrait(p.character, 22, 26));
     if (p.id === state.host) name.append(el('span', 'host', '★'));
     row.append(dot, name, el('span', `tag${p.ready ? ' ok' : ''}`, p.ready ? 'Hazır ✓' : 'Bekleniyor'));
     return row;

@@ -1,4 +1,6 @@
 import * as THREE from '/vendor/three.module.js';
+import {characterFor} from '../../platform/characters.js';
+import {buildAccessory} from '../../platform/accessory3d.js';
 
 // Köprü sahnesi yalnız görsel katmandır: sonucu sunucu belirler, burada sadece oynatılır.
 // Sonsuz köprü sabit sayıda yeniden kullanılan parçayla çizilir; ilerleme sayısal durumdur.
@@ -6,7 +8,6 @@ export const SEG = 3;           // Bir doğru cevabın köprüde kapladığı me
 const W = 7;                    // Köprü genişliği.
 const PLANK_STEP = 1, PLANKS = 72, POST_STEP = 4, POSTS = 20, ROCK_STEP = 5, ROCKS = 18;
 export const LANE_COLORS = ['#ff8a3d', '#4cc9f0', '#7ae582', '#f472b6'];
-const COLORS = ['#ff9f43', '#5ec8ff', '#ff6b9a', '#8be07a', '#c59bff', '#ffd166', '#4fd1c5', '#ff7a5c', '#9fb4ff', '#f6a6ff', '#b8e986', '#ffc3a0'];
 // Açığa çıkma zaman çizelgesi (saniye).
 const T = {lateral: .5, runStart: .6, runEnd: 1.4, logStart: .2, impact: 1.25, knockEnd: 1.95, back: 2.6, backEnd: 3.3, end: 3.6};
 
@@ -14,7 +15,6 @@ const hash = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 const lerp = (a, b, t) => a + (b - a) * t;
-export const colorFor = id => { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return COLORS[h % COLORS.length]; };
 export const laneX = (lane, count) => -W / 2 + W * (lane + .5) / count;
 
 function flameTexture() {
@@ -104,23 +104,29 @@ export function createScene(container, labelLayer, {quality = 'high', reducedMot
     group.add(roll); scene.add(group, warn); group.visible = false;
     return {group, roll, warn};
   }
-  function avatar(id) {
-    const color = new THREE.Color(colorFor(id));
+  // The body takes the BiMola character's colour; its accessory sits on the head (players face -z).
+  function avatar(id, character) {
+    const color = new THREE.Color(characterFor(character).body);
     const group = new THREE.Group(), figure = new THREE.Group();
     const mat = new THREE.MeshStandardMaterial({color, roughness: .55, emissive: '#ff5a00', emissiveIntensity: 0});
     const body = new THREE.Mesh(bodyGeo, mat); body.position.y = .56;
     const head = new THREE.Mesh(headGeo, mat); head.position.y = 1.2;
     figure.add(body, head);
+    const extras = [];
+    const accessory = buildAccessory(THREE, character, {forward: -1, material: hex => { const m = new THREE.MeshStandardMaterial({color: hex, roughness: .5}); extras.push(m); return m; }});
+    if (accessory) { accessory.position.y = 1.2; accessory.scale.setScalar(.26); figure.add(accessory); }
     const shadow = new THREE.Mesh(shadowGeo, shadowMat); shadow.rotation.x = -Math.PI / 2; shadow.position.y = .1;
     const ring = new THREE.Mesh(ringGeo, ringMat); ring.rotation.x = -Math.PI / 2; ring.position.y = .105; ring.visible = false;
     const flames = [0, 1, 2].map(i => { const s = new THREE.Sprite(new THREE.SpriteMaterial({map: flameTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true})); s.visible = false; s.position.set((i - 1) * .18, 1.1, .1); figure.add(s); return s; });
     const bubble = new THREE.Mesh(bubbleGeo, bubbleMat); bubble.position.y = .8; bubble.visible = false;
     group.add(figure, shadow, ring, bubble); scene.add(group);
     const el = document.createElement('div'); el.className = 'label'; labelLayer.appendChild(el);
-    return {id, group, figure, mat, ring, bubble, flames, el, x: 0, z: 0, y: 0, seed: hash(avatars.size + 1) * 10, log: makeLog(), text: ''};
+    return {id, character, group, figure, mat, extras, accessory, ring, bubble, flames, el, x: 0, z: 0, y: 0, seed: hash(avatars.size + 1) * 10, log: makeLog(), text: ''};
   }
   function dropAvatar(a) {
     scene.remove(a.group, a.log.group, a.log.warn); a.mat.dispose(); a.log.warn.material.dispose();
+    for (const m of a.extras) m.dispose();
+    a.accessory?.traverse(node => node.geometry?.dispose());
     for (const f of a.flames) f.material.dispose();
     a.el.remove();
   }
@@ -140,7 +146,9 @@ export function createScene(container, labelLayer, {quality = 'high', reducedMot
     const order = [...next.players].sort((a, b) => a.id < b.id ? -1 : 1);
     order.forEach((p, i) => {
       let a = avatars.get(p.id);
-      if (!a) { a = avatar(p.id); avatars.set(p.id, a); a.z = -p.position * SEG; a.x = slotX(i, order.length); }
+      // A changed character is rebuilt in place.
+      if (a && a.character !== p.character) { const {x, z} = a; dropAvatar(a); a = avatar(p.id, p.character); Object.assign(a, {x, z}); avatars.set(p.id, a); }
+      if (!a) { a = avatar(p.id, p.character); avatars.set(p.id, a); a.z = -p.position * SEG; a.x = slotX(i, order.length); }
       a.slot = slotX(i, order.length); a.player = p; a.ring.visible = p.id === myId;
       a.el.classList.toggle('me', p.id === myId);
     });

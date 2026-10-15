@@ -1,6 +1,7 @@
 import {CAPACITY, createRoom, start, choose, tick, view, finish,contenders,arenaFor} from './game.js';
 import {MAPS} from '../../../public/games/blind-shot/maps.js';
 import {validRules,teamSetup,teamsReady} from '../../../public/games/blind-shot/rules.js';
+import {CHARACTERS,DEFAULT_CHARACTER,validCharacter} from '../../../public/platform/characters.js';
 const players = room => Object.values(room.players);
 const members = room => players(room).filter(p => !p.isBot);
 const bots = room => players(room).filter(p => p.isBot);
@@ -18,7 +19,7 @@ function setBots(room, count) {
   for (const p of existing.slice(count)) delete room.players[p.id];
   for (let index = 0; bots(room).length < count && index < CAPACITY - 1; index++) {
     const id = `bot:${index}`;
-    if (!room.players[id]) room.players[id] = {id, name: names[index], isBot: true, alive: true, x: 0, y: 0, angle: 0};
+    if (!room.players[id]) room.players[id] = {id, name: names[index], character: CHARACTERS[(index + 1) % CHARACTERS.length].id, isBot: true, alive: true, x: 0, y: 0, angle: 0};
   }
   if(room.rules.mode==='teams')teamSetup(players(room),room.rules);
 }
@@ -32,10 +33,15 @@ export const adapter = {
   create: ({code, host}) => createRoom(code, host),
   members,
   canJoin(room,data={}){if(!joinable(room))return {error:'Oda dolu veya maç sürüyor. Maç bitince katılabilirsin.'};const error=teamJoinError(room,data);return error?{error}:{ok:true};},
-  addPlayer(room, {id, name,data={}}) {
+  addPlayer(room, {id, name, character, data={}}) {
     // Human invitations take priority over a bot seat in a full waiting room.
     if (players(room).length >= seats(room) && bots(room).length) setBots(room, bots(room).length - 1);
-    room.players[id] = {id, name,team:room.rules.mode==='teams'?(data.team??null):null, isBot: false, alive: true, x: 0, y: 0, angle: 0};if(room.rules.mode==='teams')teamSetup(players(room),room.rules); return {};
+    room.players[id] = {id, name, character: validCharacter(character) ? character : DEFAULT_CHARACTER, team:room.rules.mode==='teams'?(data.team??null):null, isBot: false, alive: true, x: 0, y: 0, angle: 0};if(room.rules.mode==='teams')teamSetup(players(room),room.rules); return {};
+  },
+  // Purely visual, so allowed at any time; the platform validates the id.
+  setCharacter(room, id, character) {
+    if (!room.players[id] || room.players[id].isBot) return {error: 'Oyuncu bulunamadı.'};
+    room.players[id].character = character; return {ok: true};
   },
   removePlayer(room, id) {
     delete room.players[id];

@@ -3,7 +3,9 @@ import {EYE_HEIGHT,CROUCH_EYE_HEIGHT,eyeHeight,GUN_POSITION,MUZZLE_LOCAL} from '
 import {buildMapProp,buildMapArchitecture} from './map-models.js';
 import * as THREE from '/vendor/three.module.js';
 import {moveSpectator} from './spectator.js';
-import {buildSkin,skinFor,DEFAULT_SKIN} from './skins.js';
+import {characterFor,DEFAULT_CHARACTER} from '../../platform/characters.js';
+import {buildAccessory} from '../../platform/accessory3d.js';
+import {buildSkin,hasOutfit} from './outfits.js';
 import {effectFade} from './effects.js';
 import {installHiggsfieldMaterials} from './materials.js';
 import {mapFor,wallBoxes,terrainBoxes,ROOM,walls,props as initialProps,propTypes,dimensions,objectDistance,hitParts} from './world.js';
@@ -322,24 +324,32 @@ export function createScene(container){
   }catch(error){url='';}
   previewCache.set(type,url);return url;
  }
- // Avcı karakterinin giyim katmanı skins.js'ten gelir. Baş, yüz ve beden geometrisi üç karakterde
- // de birebir aynı çizilir; yalnızca kıyafet, başlık ve renkler değişir. Kılığın takım rengi
- // (teal) her karakterde bir aksesuar olarak durur, böylece avcı uzaktan hâlâ avcı gibi okunur.
- const skinStyles=new Map();
- const styleFor=id=>{const key=skinFor(id);if(!skinStyles.has(key))skinStyles.set(key,buildSkin(mapContext,key,new THREE.Group())||{});return skinStyles.get(key);};
+ // Gövde, baş ve yüz herkeste aynıdır. Levi, Marco, Yusuf ve Tenzin bu oyunun tam kıyafetlerini
+ // giyer (outfits.js); diğer BiMola karakterleri gömlek/pantolon rengi ve başa oturan aksesuarla
+ // çizilir. Takım bir kemerle okunur: avcıda turkuaz, saklananda kiremit; avcı ayrıca silah taşır.
+ const looks=new Map(),accents=new Map();
+ const lookFor=id=>{const c=characterFor(id);if(!looks.has(c.id))looks.set(c.id,hasOutfit(c.id)?buildSkin(mapContext,c.id,new THREE.Group()):{shirt:mat(c.body,{roughness:.6}),pants:mat(c.shade,{roughness:.65}),hair:!COVERS_HAIR.has(c.accessory)});return looks.get(c.id);};
+ const accentFor=hex=>{if(!accents.has(hex))accents.set(hex,mat(hex,{roughness:.5}));return accents.get(hex);};
+
  function nameTag(value){
   const name=String(value||'').trim().slice(0,18);if(!name)return null;
   const canvas=document.createElement('canvas');canvas.width=512;canvas.height=128;const c=canvas.getContext('2d');c.font='700 52px Manrope, Arial, sans-serif';const width=Math.min(470,Math.ceil(c.measureText(name).width+68));
   c.fillStyle='#1e332ee8';c.beginPath();c.roundRect((512-width)/2,18,width,82,22);c.fill();c.strokeStyle='#ffffffcc';c.lineWidth=4;c.stroke();c.fillStyle='#fffdf4';c.textAlign='center';c.textBaseline='middle';c.fillText(name,256,59,width-40);
   const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:true,depthWrite:false}));sprite.position.set(0,2.08,0);sprite.scale.set(1.65,.41,1);sprite.renderOrder=4;return sprite;
  }
- const people=new Map();function avatar(team,skinId=DEFAULT_SKIN,displayName=''){
-  const g=new THREE.Group(),skin=mat('#c59776');
-  const style=team==='hunter'?buildSkin(mapContext,skinFor(skinId),g)||{}:{};
-  const shirt=style.shirt||(team==='hunter'?m.teal:m.terracotta),pants=style.pants||m.navy;
+ // Başı saran başlıklar saçın yerini alır.
+ const COVERS_HAIR=new Set(['beanie','helmet','cap']);
+ const people=new Map();function avatar(team,characterId=DEFAULT_CHARACTER,displayName=''){
+  const g=new THREE.Group(),skin=mat('#c59776'),character=characterFor(characterId);
+  // Kıyafetli karakterler parçalarını doğrudan bu gövdeye ekler; malzemeler önbellekle aynıdır.
+  const outfit=hasOutfit(character.id)?buildSkin(mapContext,character.id,g):null;
+  const {shirt,pants,hair}=outfit||lookFor(character.id);
   round(.43,.48,.24,.065,0,1.15,0,shirt,g);round(.36,.18,.23,.055,0,.88,0,pants,g);
+  box(.445,.06,.245,0,.95,0,team==='hunter'?m.teal:m.terracotta,g);
   cyl(.06,.075,.11,0,1.45,0,skin,g);sphere(.135,0,1.61,-.012,skin,g,.88,1.12,.88);
-  if(style.hair!==false)sphere(.14,0,1.69,.01,m.black,g,.9,.6,.9);
+  if(hair!==false)sphere(.14,0,1.69,.01,m.black,g,.9,.6,.9);
+  const accessory=outfit?null:buildAccessory(THREE,character.id,{forward:-1,material:accentFor});
+  if(accessory){accessory.position.set(0,1.61,-.012);accessory.scale.set(.124,.151,.124);g.add(accessory);}
   for(const x of [-.044,.044]){sphere(.013,x,1.63,-.121,m.white,g);sphere(.006,x,1.628,-.132,m.black,g);}
   sphere(.025,0,1.586,-.135,skin,g,.65,.7,1);rod([-.024,1.55,-.119],[.024,1.55,-.119],.003,m.terracotta,g);
   const limbs=[];
@@ -354,7 +364,7 @@ export function createScene(container){
   if(team==='hunter'){const pivot=new THREE.Group();pivot.position.y=EYE_HEIGHT;const held=gun.clone(true);held.visible=true;held.position.set(GUN_POSITION.x,GUN_POSITION.y,GUN_POSITION.z);held.rotation.set(0,0,0);held.children.filter(c=>c.userData.firstPersonOnly).forEach(c=>held.remove(c));pivot.add(held);for(const side of [-1,1]){const shoulder=[side*.245,1.33-EYE_HEIGHT,0],elbow=[side*.30,1.03-EYE_HEIGHT,-.21],hand=side===1?[GUN_POSITION.x+.025,GUN_POSITION.y-.15,GUN_POSITION.z+.12]:[GUN_POSITION.x-.08,GUN_POSITION.y-.04,GUN_POSITION.z-.08];rod(shoulder,elbow,.064,shirt,pivot);sphere(.056,...elbow,skin,pivot);rod(elbow,hand,.048,skin,pivot);sphere(.052,...hand,skin,pivot);}g.add(pivot);g.userData.weaponPivot=pivot;}
   // Sahneye eklemek çağırana bırakılır: aynı kurucu, seçim ekranının önizleme karesi için de
   // sahne dışında bir figür üretebiliyor.
-  const label=nameTag(displayName);if(label)g.add(label);g.userData.limbs=limbs;g.userData.team=team;g.userData.skin=team==='hunter'?skinFor(skinId):null;g.userData.playerName=displayName;contact(0,0,.75,.6,g);return g;
+  const label=nameTag(displayName);if(label)g.add(label);g.userData.limbs=limbs;g.userData.team=team;g.userData.character=character.id;g.userData.playerName=displayName;contact(0,0,.75,.6,g);return g;
  }
  const gun=new THREE.Group();camera.add(gun);gun.position.set(GUN_POSITION.x,GUN_POSITION.y,GUN_POSITION.z);
  const aqua=mat('#63c4c4',{roughness:.3}),navy=mat('#28484a',{roughness:.42}),coral=mat('#f4a252',{roughness:.37}),skin=mat('#d6a482',{roughness:.65});
@@ -402,10 +412,9 @@ export function createScene(container){
   if(fx.drip){fx.material.opacity=.8*(1-k*k);const grow=1+Math.min(1,age*4)*.55;fx.ring.scale.set(grow,.3,grow);continue;}
   fx.material.opacity=.9*(1-k);fx.ring.scale.setScalar(1+age*(fx.spread??(reducedMotion?.5:2.2)));for(const piece of fx.pieces){piece.position.copy(piece.userData.start).addScaledVector(piece.userData.velocity,reducedMotion?age*.15:age);piece.position.y=Math.max(.05,piece.position.y-age*age*1.8);piece.rotation.set(age*3,age*2,age);piece.scale.multiplyScalar(.994);}if(fx.silhouette){fx.silhouette.position.y=age*.25;fx.silhouette.scale.setScalar(1+Math.sin(Math.min(1,age*3)*Math.PI)*.12);}}}
  function sync(state,myId){currentState=state;currentId=myId;if(!state)return;useMap(state.settings?.mapId||'loft');for(const effect of state.effects||[])addEffect(effect,state.now-effect.at);updateObjects(state.objects?.length?state.objects:mapFor(state.settings?.mapId||'loft').fixtures);const visibleIds=new Set();for(const p of state.players||[]){const team=p.role||p.team;if(!Number.isFinite(p.x)||!Number.isFinite(p.z)||p.status==='found'||p.propId)continue;visibleIds.add(p.id);let g=people.get(p.id);
-  // Takımlar tur arası yer değiştirdiğinde model yeniden kurulur; seçilen avcı karakteri de aynı
-  // karşılaştırmaya girer, yoksa saklananken kurulan gövde avcı olunca eski kalırdı.
-  const look=team==='hunter'?skinFor(p.skin):null;
-  if(g&&(g.userData.team!==team||g.userData.skin!==look||g.userData.playerName!==p.name)){scene.remove(g);people.delete(p.id);g=null;}if(!g){g=avatar(team,p.skin,p.name);scene.add(g);g.position.set(p.x,p.y||0,p.z);people.set(p.id,g);}g.userData.target=new THREE.Vector3(p.x,p.y||0,p.z);g.userData.angle=p.yaw||0;g.userData.crouch=!!p.crouch;if(g.userData.weaponPivot)g.userData.weaponPivot.rotation.x=p.pitch||0;g.visible=p.id!==myId;}for(const[id,g]of people)if(!visibleIds.has(id))g.visible=false;for(const shot of state.shots||[])addShot(shot);}
+  // Takımlar tur arası yer değiştirdiğinde veya karakter değiştiğinde model yeniden kurulur.
+  const look=characterFor(p.character).id;
+  if(g&&(g.userData.team!==team||g.userData.character!==look||g.userData.playerName!==p.name)){scene.remove(g);people.delete(p.id);g=null;}if(!g){g=avatar(team,p.character,p.name);scene.add(g);g.position.set(p.x,p.y||0,p.z);people.set(p.id,g);}g.userData.target=new THREE.Vector3(p.x,p.y||0,p.z);g.userData.angle=p.yaw||0;g.userData.crouch=!!p.crouch;if(g.userData.weaponPivot)g.userData.weaponPivot.rotation.x=p.pitch||0;g.visible=p.id!==myId;}for(const[id,g]of people)if(!visibleIds.has(id))g.visible=false;for(const shot of state.shots||[])addShot(shot);}
  const tempVec=new THREE.Vector3(),cameraTarget=new THREE.Vector3(),focus=new THREE.Vector3();
  let frameCount=0,frameSum=0,frameTicks=0;
  // Kamera ile kılık arasında kalan duvar, tavan paneli veya mobilya o kare boyunca gizlenir:
@@ -468,9 +477,9 @@ export function createScene(container){
   const body=people.get(myId);if(body)body.visible=!myObject&&own.status!=='found';gun.visible=false;}
  else{showAll();const desired=pos.clone().add(new THREE.Vector3(0,eyeHeight(own),0));
   camera.position.copy(desired);camera.rotation.set(Math.max(-1.35,Math.min(1.35,pitch)),yaw,0,'YXZ');gun.visible=!!entered&&own.status!=='found';
-  // Avcı kendi modelini hiç görmez, yalnızca bu kolu: kolluk seçtiği karakterin kumaşını alır,
+  // Avcı kendi modelini hiç görmez, yalnızca bu kolu: kolluk karakterinin gömlek rengini alır,
   // yoksa oyuncu turda kendi seçiminin izini göremezdi.
-  const sleeve=styleFor(own.skin).shirt||m.cream;if(arm.material!==sleeve)arm.material=sleeve;
+  const sleeve=lookFor(own.character).shirt;if(arm.material!==sleeve)arm.material=sleeve;
   const isReloading=!!(own.reloadUntil&&currentState?.now&&own.reloadUntil>currentState.now);
   const reloadDur=2000,reloadProgress=isReloading?Math.min(1,Math.max(0,1-(own.reloadUntil-currentState.now)/reloadDur)):1;
   if(wasReloading&&!isReloading){recoil=0.45;}
@@ -498,8 +507,7 @@ export function createScene(container){
  applyQuality(quality,false);
  // Seçim kartındaki figür, sahnede kullanılan avatarın kendisidir: kartta gördüğün karakter
  // turda karşına çıkanla aynı, ikinci bir "vitrin modeli" yok.
- const skinPreview=id=>preview('skin:'+skinFor(id),()=>avatar('hunter',id),.72);
- const api={renderer,camera,sync,render,reset,kick:()=>{recoil=1;},pickObject,preview,skinPreview,
+ const api={renderer,camera,sync,render,reset,kick:()=>{recoil=1;},pickObject,preview,
   burstAt:(x,y,z,kind='shuffle')=>addEffect({id:'local_'+Math.random(),kind,x,y,z},0),
   quality:()=>quality,gpu:()=>gpuName,autoQuality:()=>autoQuality,
   setQuality:name=>{renderScale=1;autoQuality=false;applyQuality(name,true);return quality;},

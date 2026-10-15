@@ -1,4 +1,5 @@
 import {randomInt} from 'node:crypto';
+import {DEFAULT_CHARACTER, validCharacter} from '../../public/platform/characters.js';
 
 // Platform state is separate from game state. Adapters see no sockets or other rooms.
 export function createRuntime(io, registry, {maxRooms = 64, logger = console, scores} = {}) {
@@ -129,7 +130,9 @@ export function createRuntime(io, registry, {maxRooms = 64, logger = console, sc
           leave(socket);
           if (created) rooms.set(room.code, room);
           const name = String(data.name || 'Misafir').trim().slice(0, 18) || 'Misafir';
-          const result = adapter.addPlayer(room, {id: socket.id, name, profileId: socket.data.profileId, data});
+          // The BiMola character is validated once here; games without characters ignore it.
+          const character = validCharacter(data.character) ? data.character : DEFAULT_CHARACTER;
+          const result = adapter.addPlayer(room, {id: socket.id, name, profileId: socket.data.profileId, character, data});
           socket.data.code = room.code;
           ack({...result, code: room.code, id: socket.id, gameId: manifest.id});
           publish(room); wake();
@@ -150,6 +153,20 @@ export function createRuntime(io, registry, {maxRooms = 64, logger = console, sc
           } catch (error) { failRoom(room, error); ack?.({error: 'Oda kapandı. Lobiye dönebilirsin.'}); }
         });
       }
+      socket.on('character', (...args) => {
+        const ack = typeof args.at(-1) === 'function' ? args.pop() : null, value = args[0];
+        const character = typeof value === 'string' ? value : value?.character;
+        if (!allowed('character', 300)) return ack?.({error: 'Bir an bekle.'});
+        if (!validCharacter(character)) return ack?.({error: 'Böyle bir karakter yok.'});
+        const room = rooms.get(socket.data.code);
+        if (!room || room.gameId !== manifest.id) return ack?.({error: 'Oda bulunamadı.'});
+        if (typeof adapter.setCharacter !== 'function') return ack?.({error: 'Bu oyunda karakter yok.'});
+        try {
+          const result = adapter.setCharacter(room, socket.id, character) || {ok: true};
+          ack?.(result);
+          if (!result.error) publish(room);
+        } catch (error) { failRoom(room, error); ack?.({error: 'Oda kapandı. Lobiye dönebilirsin.'}); }
+      });
       socket.on('leave', () => leave(socket));
       socket.on('disconnect', () => leave(socket));
     });
